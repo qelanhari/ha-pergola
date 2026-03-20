@@ -1,0 +1,40 @@
+alias: "Pergola : Déblocage Matinal après Calibration"
+description: >
+  Lève le verrou matinal quand la calibration est faite ET que l'élévation
+  solaire dépasse 20°. Se déclenche aussi au démarrage de HA pour récupérer
+  un redémarrage en pleine journée.
+triggers:
+  - trigger: state
+    entity_id: input_text.pergola_last_calibration
+  - trigger: numeric_state
+    entity_id: sensor.sun_solar_elevation
+    above: 20
+  - trigger: event
+    event_type: homeassistant_start
+conditions:
+  - condition: state
+    entity_id: input_boolean.pergola_pret
+    state: "off"
+  - condition: numeric_state
+    entity_id: sensor.sun_solar_elevation
+    above: 20
+  - condition: not
+    conditions:
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: sensor.pergola_priority_lock_originator
+            state: rain
+          - condition: state
+            entity_id: sensor.pergola_priority_lock_originator
+            state: temperature
+          - condition: state
+            entity_id: sensor.pergola_priority_lock_originator
+            state: security
+  - condition: template
+    value_template: "{{ states('input_text.pergola_last_calibration') == now().strftime('%Y-%m-%d') }}"
+actions:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.pergola_pret
+mode: single

@@ -63,7 +63,10 @@ blueprint:
     # ── Capteurs environnementaux ─────────────────────────────────────────────
     humidity_sensor:
       name: Capteur humidité
-      description: "Humidité relative (%). Bloque l'automation au-dessus du seuil configuré."
+      description: >
+        Humidité relative (%). Quand elle est trop élevée, le capteur de pluie
+        risque de fermer la pergola — bloquer l'automation évite les allers-retours
+        entre la fermeture automatique et le positionnement bioclimatique.
       selector:
         entity:
           domain: sensor
@@ -211,7 +214,9 @@ blueprint:
 
     humidity_threshold:
       name: Seuil humidité de blocage (%)
-      description: Au-dessus de ce seuil, l'automation est bloquée.
+      description: >
+        Au-dessus de ce seuil, l'automation est bloquée pour éviter les
+        allers-retours avec la fermeture automatique du capteur de pluie.
       default: 80
       selector:
         number:

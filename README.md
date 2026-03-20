@@ -145,7 +145,7 @@ Copier les deux fichiers du dossier `automations/` dans
 | Pas de réglage | `5%` | Résolution des positions. Évite les micro-mouvements. |
 | Position standby/couvert | `60%` | Position par temps couvert ou soleil trop bas. |
 | Seuil standby | `9%` | En dessous, le soleil est trop bas pour être utile. |
-| Seuil humidité de blocage | `80%` | Protection pluie. |
+| Seuil humidité de blocage | `80%` | Au-dessus de ce seuil, l'automation est bloquée pour éviter les allers-retours avec la fermeture automatique du capteur de pluie. |
 | Élévation solaire minimale | `5°` | Sous cette élévation, l'automation ne s'exécute pas. |
 | Puissance PV max | `3000 W` | Puissance crête du capteur PV par ciel dégagé. |
 

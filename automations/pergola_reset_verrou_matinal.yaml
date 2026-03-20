@@ -1,0 +1,13 @@
+alias: "Pergola : Reset Verrou Matinal"
+description: >
+  Remet pergola_pret à off chaque nuit à minuit pour préparer
+  la calibration du lendemain.
+triggers:
+  - trigger: time
+    at: "00:00:00"
+conditions: []
+actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.pergola_pret
+mode: single

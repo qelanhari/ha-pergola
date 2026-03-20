@@ -1,0 +1,464 @@
+blueprint:
+  name: Pergola Bioclimatique
+  description: >
+    Oriente automatiquement les lames d'une pergola bioclimatique selon la position
+    du soleil, en mode Hiver (capter la chaleur) ou Été (bloquer le rayonnement).
+
+    **Logique :**
+
+    - **Hiver :** suit le `profile_angle` à la hausse, tient la position maximale
+      quand le soleil redescend (`max(target, pos_actuelle)`).
+    - **Été :** opposition totale au soleil. Bascule vers ~0% dès que 100% ne suffit
+      plus (`s_raw > max_opening_angle`).
+    - **Standby / Couvert :** position configurable (défaut 60%).
+
+    **Prérequis — helpers à créer :**
+
+    | Helper | Type | Rôle |
+    |---|---|---|
+    | `input_select` | Hiver / Été / Manuel | Mode courant |
+    | `input_number` (0–5000, step 0.1) | — | Lissage puissance PV |
+    | `input_boolean` | — | État ensoleillement (avec verrou 15 min) |
+    | `input_text` | — | Date dernière calibration (YYYY-MM-DD) |
+    | `input_boolean` | — | Pergola prête (activé post-calibration) |
+    | `sensor` (template/MQTT) | `rain`/`temperature`/`security`/vide | Verrou prioritaire |
+
+  domain: automation
+  source_url: https://github.com/YOUR_USERNAME/ha-pergola/blob/main/blueprints/pergola_bioclimatique.yaml
+
+  input:
+
+    # ── Entités cover & mode ──────────────────────────────────────────────────
+    pergola_cover:
+      name: Lames de pergola
+      description: Entité cover dont on contrôle la position des lames.
+      selector:
+        entity:
+          domain: cover
+
+    mode_select:
+      name: Sélecteur de mode
+      description: "input_select avec les options : Hiver, Été, Manuel."
+      selector:
+        entity:
+          domain: input_select
+
+    # ── Capteurs solaires ─────────────────────────────────────────────────────
+    azimuth_sensor:
+      name: Capteur azimut solaire
+      description: Azimut du soleil en degrés (0°=N, 90°=E, 180°=S, 270°=O).
+      default: sensor.sun_solar_azimuth
+      selector:
+        entity:
+          domain: sensor
+
+    elevation_sensor:
+      name: Capteur élévation solaire
+      description: Élévation du soleil au-dessus de l'horizon (degrés).
+      default: sensor.sun_solar_elevation
+      selector:
+        entity:
+          domain: sensor
+
+    # ── Capteurs environnementaux ─────────────────────────────────────────────
+    humidity_sensor:
+      name: Capteur humidité
+      description: "Humidité relative (%). Bloque l'automation au-dessus du seuil configuré."
+      selector:
+        entity:
+          domain: sensor
+
+    pv_power_sensor:
+      name: Capteur puissance PV
+      description: >
+        Puissance solaire mesurée (W) — sert à détecter l'ensoleillement.
+        Panneau horizontal ou capteur de la pergola elle-même.
+      selector:
+        entity:
+          domain: sensor
+
+    # ── Helpers d'état ────────────────────────────────────────────────────────
+    pv_smooth_helper:
+      name: Helper — lissage PV (input_number)
+      description: Stocke la puissance PV lissée entre les cycles (0–5000 W, step 0.1).
+      selector:
+        entity:
+          domain: input_number
+
+    sunny_state_helper:
+      name: Helper — état ensoleillement (input_boolean)
+      description: Indique si la pergola est en plein soleil. Verrouillé 15 min après changement.
+      selector:
+        entity:
+          domain: input_boolean
+
+    last_calibration_helper:
+      name: Helper — date calibration (input_text)
+      description: Stocke la date de la dernière calibration (YYYY-MM-DD).
+      selector:
+        entity:
+          domain: input_text
+
+    pergola_ready_helper:
+      name: Helper — pergola prête (input_boolean)
+      description: >
+        Activé par l'automation de déblocage après validation de la calibration.
+        Bloque tout mouvement avant la calibration du matin.
+      selector:
+        entity:
+          domain: input_boolean
+
+    priority_lock_sensor:
+      name: Capteur verrou prioritaire (sensor)
+      description: >
+        État = 'rain', 'temperature' ou 'security' → automation bloquée.
+        Vide ou autre valeur = pas de verrou.
+      selector:
+        entity:
+          domain: sensor
+
+    # ── Géométrie de la pergola ───────────────────────────────────────────────
+    face_azimuth:
+      name: Azimut de la face (°)
+      description: >
+        Direction vers laquelle les lames font face à 100% d'ouverture.
+        135° = Sud-Est, 180° = Sud, 225° = Sud-Ouest.
+      default: 130
+      selector:
+        number:
+          min: 0
+          max: 359
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
+    max_opening_angle:
+      name: Angle max des lames (°)
+      description: Angle correspondant à 100% d'ouverture. Typiquement 135°.
+      default: 135
+      selector:
+        number:
+          min: 90
+          max: 180
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
+    calibration_offset:
+      name: Offset de calibration (°)
+      description: >
+        Correction permanente pour l'imprécision mécanique.
+        Valeur négative = lames plus fermées que la valeur théorique.
+      default: -10
+      selector:
+        number:
+          min: -30
+          max: 30
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
+    summer_safety_offset:
+      name: Marge de sécurité été (°)
+      description: Angle supplémentaire en mode Été pour garantir l'ombre à la bascule.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
+    # ── Comportement ─────────────────────────────────────────────────────────
+    step_size:
+      name: Pas de réglage (%)
+      description: Résolution des positions cibles. Réduit les micro-mouvements inutiles.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    cloudy_target:
+      name: Position standby / couvert (%)
+      description: Position par temps couvert ou soleil trop bas. 60% = lumière diffuse.
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+          mode: slider
+
+    min_useful_percent:
+      name: Seuil standby (%)
+      description: >
+        En dessous de ce pourcentage calculé, le soleil est jugé trop bas
+        et la pergola passe en position standby.
+      default: 9
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    humidity_threshold:
+      name: Seuil humidité de blocage (%)
+      description: Au-dessus de ce seuil, l'automation est bloquée.
+      default: 80
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    elevation_min:
+      name: Élévation solaire minimale (°)
+      description: En dessous de cette élévation, l'automation ne s'exécute pas.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
+    pv_max_w:
+      name: Puissance PV max estimée (W)
+      description: Puissance crête du capteur PV par ciel dégagé. Sert au seuil d'ensoleillement.
+      default: 3000
+      selector:
+        number:
+          min: 100
+          max: 10000
+          step: 100
+          unit_of_measurement: "W"
+          mode: box
+
+# ── Triggers ─────────────────────────────────────────────────────────────────
+triggers:
+  - trigger: time_pattern
+    minutes: "/5"
+  - trigger: state
+    entity_id: !input mode_select
+
+# ── Conditions ───────────────────────────────────────────────────────────────
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: !input mode_select
+        state: Manuel
+  - condition: numeric_state
+    entity_id: !input elevation_sensor
+    above: !input elevation_min
+  - condition: numeric_state
+    entity_id: !input humidity_sensor
+    below: !input humidity_threshold
+  - condition: not
+    conditions:
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: !input priority_lock_sensor
+            state: rain
+          - condition: state
+            entity_id: !input priority_lock_sensor
+            state: temperature
+          - condition: state
+            entity_id: !input priority_lock_sensor
+            state: security
+
+# ── Actions ───────────────────────────────────────────────────────────────────
+actions:
+  - variables:
+      # ── Inputs numériques → accessibles dans les templates ─────────────────
+      face_azimuth: !input face_azimuth
+      max_opening_angle: !input max_opening_angle
+      step_size: !input step_size
+      calibration_offset: !input calibration_offset
+      summer_safety_offset: !input summer_safety_offset
+      cloudy_target: !input cloudy_target
+      min_useful_percent: !input min_useful_percent
+      pv_max_w: !input pv_max_w
+
+      # ── Inputs entités → stockés comme strings pour les templates ──────────
+      # !input ne fonctionne pas à l'intérieur de {{ }}, on passe par des variables
+      pergola_cover: !input pergola_cover
+      mode_select: !input mode_select
+      azimuth_sensor: !input azimuth_sensor
+      elevation_sensor: !input elevation_sensor
+      pv_power_sensor: !input pv_power_sensor
+      pv_smooth_helper: !input pv_smooth_helper
+      sunny_state_helper: !input sunny_state_helper
+      last_calibration_helper: !input last_calibration_helper
+
+      # ── Lectures d'état ───────────────────────────────────────────────────
+      azim: "{{ states(azimuth_sensor) | float(0) }}"
+      elev: "{{ states(elevation_sensor) | float(0) }}"
+      mode: "{{ states(mode_select) }}"
+      today_date: "{{ now().strftime('%Y-%m-%d') }}"
+      last_calib_date: "{{ states(last_calibration_helper) }}"
+      current_pos: "{{ state_attr(pergola_cover, 'current_tilt_position') | default(0, true) | float }}"
+
+      # ── Géométrie solaire ─────────────────────────────────────────────────
+      # profile_angle : angle entre le rayon solaire et le plan des lames
+      # Pic quand le soleil est directement face à la pergola
+      pi: 3.14159265
+      elev_rad: "{{ elev * pi / 180 }}"
+      delta_azim: "{{ (azim - face_azimuth) | abs }}"
+      delta_rad: "{{ delta_azim * pi / 180 }}"
+      profile_angle: >-
+        {% if delta_azim >= 180 %}
+          0
+        {% else %}
+          {% if ((delta_rad)|cos)|abs > 0.001 %}
+            {% set tan_p = ((elev_rad)|tan) / ((delta_rad)|cos) %}
+            {% set angle = (tan_p | atan) * 180 / pi %}
+            {% if angle < 0 %}
+              {{ angle + 180 }}
+            {% else %}
+              {{ angle }}
+            {% endif %}
+          {% else %}
+            90
+          {% endif %}
+        {% endif %}
+
+      # ── Cible solaire ─────────────────────────────────────────────────────
+      # Hiver  : profile_angle direct → 0–100%
+      # Été    : +90° (opposition) ; bascule à ~0% si s_raw > max_opening_angle
+      solar_target_raw: >-
+        {% if mode == 'Hiver' %}
+            {{ profile_angle + calibration_offset }}
+        {% else %}
+            {% set s_raw = profile_angle | float + 90 + calibration_offset + summer_safety_offset %}
+            {% if s_raw <= max_opening_angle %}
+                {{ s_raw }}
+            {% else %}
+                {{ profile_angle | float - 90 + calibration_offset }}
+            {% endif %}
+        {% endif %}
+
+      solar_percent_final: >-
+        {% set raw = (solar_target_raw / max_opening_angle) * 100 %}
+        {% set stepped = (raw / step_size) | round(0) * step_size %}
+        {% if stepped < 0 %} 0
+        {% elif stepped > 100 %} 100
+        {% else %} {{ stepped | int }}
+        {% endif %}
+
+      is_standby: "{{ solar_percent_final | int < min_useful_percent }}"
+
+      # ── Détection ensoleillement via PV ───────────────────────────────────
+      # Lissage exponentiel (α=0.4) + seuil dynamique selon angle d'incidence
+      pv_raw: "{{ states(pv_power_sensor) | float(0) }}"
+      pv_smooth_prev: "{{ states(pv_smooth_helper) | float(0) }}"
+      pv_smooth: "{{ (0.4 * pv_raw + 0.6 * pv_smooth_prev) | round(1) }}"
+      cos_panel_tilt: "{{ (30 * pi / 180) | cos }}"
+      sin_panel_tilt: "{{ (30 * pi / 180) | sin }}"
+      cos_aoi: "{{ [0, (elev_rad | sin) * cos_panel_tilt + (elev_rad | cos) * sin_panel_tilt * (delta_rad | cos)] | max }}"
+      pv_sunny_threshold: "{{ [1000, cos_aoi * pv_max_w * 0.30] | max | round(0) }}"
+      is_sunny_now: "{{ states(sunny_state_helper) == 'on' }}"
+      mode_lock_secs: 900
+      time_since_mode_change: >-
+        {%- if states(sunny_state_helper) in ['unknown','unavailable','none'] -%}
+          99999
+        {%- else -%}
+          {{ (now() - states[sunny_state_helper].last_changed).total_seconds() }}
+        {%- endif -%}
+      mode_change_allowed: "{{ time_since_mode_change | float > mode_lock_secs }}"
+      new_is_sunny: >-
+        {%- if mode_change_allowed -%}
+          {{ pv_smooth | float > pv_sunny_threshold | float }}
+        {%- else -%}
+          {{ is_sunny_now }}
+        {%- endif -%}
+
+      # ── Décision finale ───────────────────────────────────────────────────
+      # Couvert/standby → cloudy_target
+      # Hiver           → max(target, pos_actuelle) : monte avec le soleil, tient le pic
+      # Été             → target pur (inclut la bascule à ~0%)
+      final_target: >-
+        {%- if not new_is_sunny or is_standby -%}
+           {{ cloudy_target }}
+        {%- elif mode == "Hiver" -%}
+           {{ [solar_percent_final | int, current_pos | int] | max }}
+        {%- else -%}
+           {{ solar_percent_final }}
+        {%- endif -%}
+
+  # ── Mise à jour lissage PV ─────────────────────────────────────────────────
+  - action: input_number.set_value
+    target:
+      entity_id: !input pv_smooth_helper
+    data:
+      value: "{{ pv_smooth }}"
+
+  # ── Mise à jour état ensoleillement ────────────────────────────────────────
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ new_is_sunny and not is_sunny_now }}"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input sunny_state_helper
+      - conditions:
+          - condition: template
+            value_template: "{{ not new_is_sunny and is_sunny_now }}"
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input sunny_state_helper
+
+  # ── Condition : mouvement nécessaire ou calibration à faire ───────────────
+  - condition: template
+    value_template: "{{ (final_target | float - current_pos | float) | abs > 2 or last_calib_date != today_date }}"
+
+  # ── Calibration matinale (une fois par jour) ──────────────────────────────
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ last_calib_date != today_date }}"
+        sequence:
+          - action: cover.close_cover_tilt
+            target:
+              entity_id: !input pergola_cover
+          - delay:
+              seconds: 45
+          - condition: template
+            value_template: "{{ state_attr(pergola_cover, 'current_tilt_position') | float(100) < 5 }}"
+          - action: input_text.set_value
+            target:
+              entity_id: !input last_calibration_helper
+            data:
+              value: "{{ today_date }}"
+
+  # ── Condition : pergola prête (post-calibration) ──────────────────────────
+  - condition: state
+    entity_id: !input pergola_ready_helper
+    state: "on"
+
+  # ── Positionnement final ──────────────────────────────────────────────────
+  - action: cover.set_cover_tilt_position
+    target:
+      entity_id: !input pergola_cover
+    data:
+      tilt_position: >
+        {% if final_target | int > 100 %} 100
+        {% elif final_target | int < 0 %} 0
+        {% else %} {{ final_target | int }}
+        {% endif %}
+
+mode: single

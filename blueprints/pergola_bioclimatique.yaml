@@ -24,7 +24,7 @@ blueprint:
     | `sensor` (template/MQTT) | `rain`/`temperature`/`security`/vide | Verrou prioritaire |
 
   domain: automation
-  source_url: https://github.com/YOUR_USERNAME/ha-pergola/blob/main/blueprints/pergola_bioclimatique.yaml
+  source_url: https://github.com/qelanhari/ha-pergola/blob/main/blueprints/pergola_bioclimatique.yaml
 
   input:
 

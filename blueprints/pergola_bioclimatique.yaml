@@ -283,6 +283,22 @@ blueprint:
           unit_of_measurement: "%"
           mode: slider
 
+    pv_panel_tilt:
+      name: PV sensor tilt angle (°)
+      description: >
+        Tilt angle of the PV panel or irradiance sensor from horizontal.
+        0° = flat/horizontal, 90° = vertical.
+        Used to compute the dynamic sunny threshold based on angle of incidence.
+        Only relevant when a PV power sensor is configured.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 90
+          step: 1
+          unit_of_measurement: "°"
+          mode: slider
+
     pv_max_w:
       name: Estimated peak PV power (W)
       description: >
@@ -327,6 +343,7 @@ actions:
       cloudy_target: !input cloudy_target
       min_useful_percent: !input min_useful_percent
       humidity_threshold: !input humidity_threshold
+      pv_panel_tilt: !input pv_panel_tilt
       pv_max_w: !input pv_max_w
 
       # ── Mode labels ────────────────────────────────────────────────────────
@@ -408,8 +425,8 @@ actions:
       pv_raw: "{{ states(pv_power_sensor) | float(0) if pv_power_sensor != '' else 0 }}"
       pv_smooth_prev: "{{ states(pv_smooth_helper) | float(0) if pv_smooth_helper != '' else 0 }}"
       pv_smooth: "{{ (0.4 * pv_raw + 0.6 * pv_smooth_prev) | round(1) }}"
-      cos_panel_tilt: "{{ (30 * pi / 180) | cos }}"
-      sin_panel_tilt: "{{ (30 * pi / 180) | sin }}"
+      cos_panel_tilt: "{{ (pv_panel_tilt * pi / 180) | cos }}"
+      sin_panel_tilt: "{{ (pv_panel_tilt * pi / 180) | sin }}"
       cos_aoi: "{{ [0, (elev_rad | sin) * cos_panel_tilt + (elev_rad | cos) * sin_panel_tilt * (delta_rad | cos)] | max }}"
       pv_sunny_threshold: "{{ [1000, cos_aoi * pv_max_w * 0.30] | max | round(0) }}"
       is_sunny_now: "{{ states(sunny_state_helper) == 'on' if sunny_state_helper != '' else false }}"

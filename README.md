@@ -69,11 +69,20 @@ repeating it within the same day.
 
 ## Prerequisites
 
-### Sun integration
+### Solar position integration
 
-The built-in **Sun** integration must be active (enabled by default). It
-provides `sensor.sun_solar_azimuth` and `sensor.sun_solar_elevation`,
-used as default values in the blueprint.
+The blueprint requires two sensors: **solar azimuth** and **solar elevation**.
+Any integration that exposes these values works. The most common options:
+
+| Integration | Azimuth entity | Elevation entity | Notes |
+|---|---|---|---|
+| **Sun** *(built-in)* | `sensor.sun_solar_azimuth` | `sensor.sun_solar_elevation` | Default. Enable in Settings → Integrations → Sun. Uses your HA home coordinates. |
+| **Sun2** *(HACS)* | configurable | configurable | More accurate, supports multiple locations. |
+| **Astral** / custom template | any sensor | any sensor | Any source works as long as it exposes azimuth (0–360°) and elevation (degrees). |
+
+The blueprint pre-fills the Sun integration entity names. If you use a
+different integration, update the **Solar azimuth sensor** and
+**Solar elevation sensor** fields accordingly.
 
 ### Required helpers
 
@@ -149,6 +158,7 @@ entity names to match your setup:
 | PV power sensor | *(empty)* | If set, enables cloud detection. Leave empty to always track the sun. |
 | PV smooth helper | *(empty)* | Required when using a PV sensor. |
 | Sunny state helper | *(empty)* | Required when using a PV sensor. |
+| PV sensor tilt angle | `30°` | Tilt of the PV panel from horizontal. Used for the angle-of-incidence threshold. |
 | Estimated peak PV power | `3000 W` | Used to compute the dynamic sunny threshold. |
 
 ---

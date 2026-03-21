@@ -447,16 +447,20 @@ actions:
         {%- endif -%}
 
       # ── Final decision ────────────────────────────────────────────────────
-      # Overcast/standby → cloudy_target
-      # Winter           → max(target, current_pos): rises with the sun, holds peak
-      # Summer           → pure target (includes ~0% flip)
+      # Standby (sun too low) → cloudy_target
+      # Sunny + Winter        → follow sun freely (track up AND down)
+      # Not sunny + Winter    → hold current position (don't drop when sun fades)
+      # Sunny + Summer        → pure solar target (includes ~0% flip)
+      # Not sunny + Summer    → cloudy_target
       final_target: >-
-        {%- if not new_is_sunny or is_standby -%}
+        {%- if is_standby -%}
            {{ cloudy_target }}
-        {%- elif mode == winter_mode_value -%}
-           {{ [solar_percent_final | int, current_pos | int] | max }}
-        {%- else -%}
+        {%- elif new_is_sunny -%}
            {{ solar_percent_final }}
+        {%- elif mode == winter_mode_value -%}
+           {{ current_pos | int }}
+        {%- else -%}
+           {{ cloudy_target }}
         {%- endif -%}
 
   # ── Optional condition: humidity ──────────────────────────────────────────

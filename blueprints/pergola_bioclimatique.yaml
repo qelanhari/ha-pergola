@@ -458,7 +458,7 @@ actions:
         {%- elif new_is_sunny -%}
            {{ solar_percent_final }}
         {%- elif mode == winter_mode_value -%}
-           {{ current_pos | int }}
+           {{ [cloudy_target | int, current_pos | int] | max }}
         {%- else -%}
            {{ cloudy_target }}
         {%- endif -%}

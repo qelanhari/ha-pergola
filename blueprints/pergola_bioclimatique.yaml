@@ -24,6 +24,7 @@ blueprint:
     | Mode selector | input_select | Winter / Summer / Manual (labels are configurable) |
     | Last calibration | input_text | Stores today's calibration date (YYYY-MM-DD) |
     | Pergola ready | input_boolean | Unlocked by the companion automation after calibration |
+    | Descent calibrated | input_boolean | Tracks whether a recalibration before descent has been done today |
 
     **Note:** Morning calibration (closing to zero, then recording the date) is
     handled by the companion `pergola_unlock_after_calibration` automation, not
@@ -166,6 +167,17 @@ blueprint:
       description: >
         Activated by the companion automation once calibration is validated
         and the sun is above 20°. Blocks all movement before the morning calibration.
+      selector:
+        entity:
+          domain: input_boolean
+
+    descent_calibrated_helper:
+      name: Descent calibrated helper — input_boolean
+      description: >
+        Tracks whether the motor has been recalibrated (closed to zero) before
+        a downward movement today. Reset each night by the reset automation.
+        The motor loses positional accuracy when closing; this ensures one
+        recalibration per descent session.
       selector:
         entity:
           domain: input_boolean
@@ -366,6 +378,7 @@ actions:
       pv_smooth_helper: !input pv_smooth_helper
       sunny_state_helper: !input sunny_state_helper
       last_calibration_helper: !input last_calibration_helper
+      descent_calibrated_helper: !input descent_calibrated_helper
 
       # ── State readings ────────────────────────────────────────────────────
       azim: "{{ states(azimuth_sensor) | float(0) }}"
@@ -514,6 +527,39 @@ actions:
   - condition: state
     entity_id: !input pergola_ready_helper
     state: "on"
+
+  # ── Recalibration before first descent > 5% ───────────────────────────────
+  # The motor loses positional accuracy when closing. This block:
+  # - Resets the descent flag when the target goes significantly UP (fresh ascent)
+  # - Recalibrates (close to 0%) once before the first significant descent of the day
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ final_target | int > current_pos | int + 5 }}"
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input descent_calibrated_helper
+      - conditions:
+          - condition: template
+            value_template: "{{ final_target | int < current_pos | int - 5 }}"
+          - condition: state
+            entity_id: !input descent_calibrated_helper
+            state: "off"
+        sequence:
+          - action: cover.close_cover_tilt
+            target:
+              entity_id: !input pergola_cover
+          - delay:
+              seconds: 45
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr(pergola_cover, 'current_tilt_position') | float(100) < 5 }}"
+                sequence:
+                  - action: input_boolean.turn_on
+                    target:
+                      entity_id: !input descent_calibrated_helper
 
   # ── Final positioning ─────────────────────────────────────────────────────
   - action: cover.set_cover_tilt_position

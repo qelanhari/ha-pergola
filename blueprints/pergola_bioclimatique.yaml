@@ -567,9 +567,10 @@ actions:
       entity_id: !input pergola_cover
     data:
       tilt_position: >
-        {% if final_target | int > 100 %} 100
-        {% elif final_target | int < 0 %} 0
-        {% else %} {{ final_target | int }}
+        {% set t = ((final_target | float / 5) | round(0) | int) * 5 %}
+        {% if t > 100 %} 100
+        {% elif t < 0 %} 0
+        {% else %} {{ t }}
         {% endif %}
 
 mode: single

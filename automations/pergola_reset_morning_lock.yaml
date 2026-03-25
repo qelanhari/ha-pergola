@@ -1,8 +1,8 @@
 alias: "Pergola: Reset Morning Lock"
 description: >
-  Resets pergola_ready to off every night at midnight to prepare
-  the next day's morning calibration.
-  Adapt the entity name to match your configuration.
+  Resets pergola_ready and pergola_descent_calibrated to off every night at
+  midnight to prepare the next day's morning calibration and descent recalibration.
+  Adapt entity names to match your configuration.
 triggers:
   - trigger: time
     at: "00:00:00"
@@ -10,5 +10,7 @@ conditions: []
 actions:
   - action: input_boolean.turn_off
     target:
-      entity_id: input_boolean.pergola_ready
+      entity_id:
+        - input_boolean.pergola_ready
+        - input_boolean.pergola_descent_calibrated
 mode: single

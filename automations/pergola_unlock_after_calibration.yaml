@@ -1,12 +1,12 @@
 alias: "Pergola: Unlock After Calibration"
 description: >
-  Activates pergola_ready once today's calibration is confirmed AND solar
-  elevation exceeds 20°. Also triggers on HA restart to recover from a
-  mid-day reboot.
+  Performs the morning calibration (close to zero, verify, record date) and
+  immediately unlocks the pergola once solar elevation exceeds 20°.
+  Calibration and unlock are atomic: the pergola only closes briefly right
+  before it would open for the first time each day.
+  Also triggers on HA restart to recover from a mid-day reboot.
   Adapt entity names to match your configuration.
 triggers:
-  - trigger: state
-    entity_id: input_text.pergola_last_calibration
   - trigger: numeric_state
     entity_id: sensor.sun_solar_elevation
     above: 20
@@ -34,9 +34,32 @@ conditions:
           - condition: state
             entity_id: sensor.pergola_priority_lock_originator
             state: security
+actions:
+  # ── Morning calibration (if not already done today) ───────────────────────
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ states('input_text.pergola_last_calibration') != now().strftime('%Y-%m-%d') }}"
+        sequence:
+          - action: cover.close_cover_tilt
+            target:
+              entity_id: cover.pergola
+          - delay:
+              seconds: 45
+          # Abort if the cover did not reach the closed position (device error)
+          - condition: template
+            value_template: "{{ state_attr('cover.pergola', 'current_tilt_position') | float(100) < 5 }}"
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.pergola_last_calibration
+            data:
+              value: "{{ now().strftime('%Y-%m-%d') }}"
+
+  # ── Abort if calibration failed or was never recorded ─────────────────────
   - condition: template
     value_template: "{{ states('input_text.pergola_last_calibration') == now().strftime('%Y-%m-%d') }}"
-actions:
+
+  # ── Unlock ────────────────────────────────────────────────────────────────
   - action: input_boolean.turn_on
     target:
       entity_id: input_boolean.pergola_ready

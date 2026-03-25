@@ -25,6 +25,10 @@ blueprint:
     | Last calibration | input_text | Stores today's calibration date (YYYY-MM-DD) |
     | Pergola ready | input_boolean | Unlocked by the companion automation after calibration |
 
+    **Note:** Morning calibration (closing to zero, then recording the date) is
+    handled by the companion `pergola_unlock_after_calibration` automation, not
+    here. This automation only handles positioning.
+
     **Optional helpers (only if using PV detection):**
 
     | Helper | Type | Role |
@@ -428,7 +432,7 @@ actions:
       cos_panel_tilt: "{{ (pv_panel_tilt * pi / 180) | cos }}"
       sin_panel_tilt: "{{ (pv_panel_tilt * pi / 180) | sin }}"
       cos_aoi: "{{ [0, (elev_rad | sin) * cos_panel_tilt + (elev_rad | cos) * sin_panel_tilt * (delta_rad | cos)] | max }}"
-      pv_sunny_threshold: "{{ [1000, cos_aoi * pv_max_w * 0.30] | max | round(0) }}"
+      pv_sunny_threshold: "{{ [700, cos_aoi * pv_max_w * 0.30] | max | round(0) }}"
       is_sunny_now: "{{ states(sunny_state_helper) == 'on' if sunny_state_helper != '' else false }}"
       time_since_mode_change: >-
         {%- if sunny_state_helper == '' or states(sunny_state_helper) in ['unknown','unavailable','none'] -%}
@@ -502,30 +506,11 @@ actions:
             target:
               entity_id: "{{ sunny_state_helper }}"
 
-  # ── Condition: movement needed or calibration due ─────────────────────────
+  # ── Condition: movement needed ────────────────────────────────────────────
   - condition: template
-    value_template: "{{ (final_target | float - current_pos | float) | abs > 2 or last_calib_date != today_date }}"
+    value_template: "{{ (final_target | float - current_pos | float) | abs > 2 }}"
 
-  # ── Morning calibration (once per day) ────────────────────────────────────
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ last_calib_date != today_date }}"
-        sequence:
-          - action: cover.close_cover_tilt
-            target:
-              entity_id: !input pergola_cover
-          - delay:
-              seconds: 45
-          - condition: template
-            value_template: "{{ state_attr(pergola_cover, 'current_tilt_position') | float(100) < 5 }}"
-          - action: input_text.set_value
-            target:
-              entity_id: !input last_calibration_helper
-            data:
-              value: "{{ today_date }}"
-
-  # ── Condition: pergola ready (post-calibration gate) ──────────────────────
+  # ── Condition: pergola ready (unlocked by companion automation) ───────────
   - condition: state
     entity_id: !input pergola_ready_helper
     state: "on"

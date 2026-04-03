@@ -67,4 +67,4 @@ LOCK_SECURITY = "security"
 LOCK_ORIGINS = [LOCK_RAIN, LOCK_TEMPERATURE, LOCK_SECURITY]
 
 # Platforms
-PLATFORMS = ["sensor", "binary_sensor", "select"]
+PLATFORMS = ["sensor", "binary_sensor", "select", "button"]

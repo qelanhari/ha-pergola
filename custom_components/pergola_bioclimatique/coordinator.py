@@ -256,6 +256,55 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._save_state()
         await self.async_request_refresh()
 
+    # --- Button actions ---
+
+    async def async_force_recalibrate(self) -> None:
+        """Force a recalibration, then move to current target."""
+        cover_id = self._entity(CONF_COVER_ENTITY)
+        if not cover_id:
+            return
+
+        _LOGGER.info("Pergola: forced recalibration requested")
+        await self.hass.services.async_call(
+            "cover", "close_cover_tilt",
+            target={"entity_id": cover_id},
+        )
+        await asyncio.sleep(45)
+
+        pos = self._get_cover_tilt()
+        if pos < 5:
+            self._descent_calibrated = True
+            self._last_calibration = date.today()
+            self._pergola_ready = True
+            _LOGGER.info("Pergola: forced recalibration successful")
+            await self._save_state()
+            # Recalculate and move to target
+            await self.async_request_refresh()
+        else:
+            _LOGGER.warning(
+                "Pergola: forced recalibration failed, position %.1f%%", pos
+            )
+
+    async def async_force_refresh(self) -> None:
+        """Force a target recalculation without calibration."""
+        _LOGGER.info("Pergola: forced target recalculation requested")
+        await self.async_request_refresh()
+
+    # --- Descent recalibration ---
+
+    async def _async_recalibrate_descent(self, cover_id: str) -> bool:
+        """Recalibrate before a descent. Returns True if successful."""
+        await self.hass.services.async_call(
+            "cover", "close_cover_tilt",
+            target={"entity_id": cover_id},
+        )
+        await asyncio.sleep(45)
+        pos = self._get_cover_tilt()
+        if pos < 5:
+            self._descent_calibrated = True
+            return True
+        return False
+
     # --- Main control loop (called every N minutes by DataUpdateCoordinator) ---
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -339,20 +388,20 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not cover_id:
             return self._build_data()
 
-        if final > current_pos + 5:
-            # Opening: reset descent flag
+        if final > current_pos + step:
+            # Opening: reset descent flag for next descent
             self._descent_calibrated = False
-        elif final < current_pos - 5 and not self._descent_calibrated:
-            # Significant descent without calibration: recalibrate first
-            await self.hass.services.async_call(
-                "cover", "close_cover_tilt",
-                target={"entity_id": cover_id},
+
+        if final < current_pos - step and not self._descent_calibrated:
+            # Any significant descent requires recalibration first
+            _LOGGER.info(
+                "Pergola: descent %d%% → %d%% requires recalibration",
+                int(current_pos), int(final),
             )
-            await asyncio.sleep(45)
-            new_pos = self._get_cover_tilt()
-            if new_pos < 5:
-                self._descent_calibrated = True
-            # Continue to set final position below
+            success = await self._async_recalibrate_descent(cover_id)
+            if not success:
+                _LOGGER.warning("Pergola: descent recalibration failed, blocking movement")
+                return self._build_data()
 
         # Move pergola
         await self.hass.services.async_call(

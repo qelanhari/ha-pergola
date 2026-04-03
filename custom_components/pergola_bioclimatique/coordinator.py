@@ -20,7 +20,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import solar
 from .const import (
-    CONF_CALIBRATION_ELEVATION,
     CONF_CALIBRATION_OFFSET,
     CONF_CLOUDY_TARGET,
     CONF_COVER_ENTITY,
@@ -415,7 +414,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (ValueError, TypeError):
             return
 
-        threshold = self._cfg(CONF_CALIBRATION_ELEVATION, 20)
+        threshold = self._cfg(CONF_MIN_ELEVATION, 20)
         if elev > threshold and not self._pergola_ready and not self._calibrating:
             self.hass.async_create_task(self._async_calibrate())
 

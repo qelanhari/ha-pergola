@@ -67,8 +67,7 @@ The setup wizard guides you through 4 steps:
 | Cloudy/standby position | 60% | Default position when overcast |
 | Minimum useful position | 9% | Below this, switch to standby |
 | Humidity threshold | 80% | Block automation above this humidity |
-| Minimum elevation | 5° | Inactive below this sun elevation |
-| Calibration elevation | 20° | Triggers morning calibration |
+| Minimum elevation | 20° | Below this sun elevation, control loop and morning calibration are inactive |
 
 ### Step 4: Cloud detection (only if PV/light sensor configured)
 

@@ -52,8 +52,7 @@
           "cloudy_target": "Position nuageux/standby",
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Seuil d'humidité maximum",
-          "min_elevation": "Élévation solaire minimum",
-          "calibration_elevation": "Élévation de calibration"
+          "min_elevation": "Élévation solaire minimum"
         },
         "data_description": {
           "update_interval": "Fréquence d'exécution de la boucle de contrôle.",
@@ -62,8 +61,7 @@
           "cloudy_target": "Position par défaut quand il fait nuageux ou en standby.",
           "min_useful_percent": "En dessous de cette position, passe en standby.",
           "humidity_max": "L'automatisation est bloquée quand l'humidité dépasse cette valeur.",
-          "min_elevation": "L'automatisation est inactive quand le soleil est en dessous de cette élévation.",
-          "calibration_elevation": "Élévation solaire qui déclenche la calibration matinale."
+          "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."
         }
       },
       "cloud_detection": {
@@ -94,6 +92,12 @@
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
           "summer_safety_margin": "Marge de sécurité été"
+        },
+        "data_description": {
+          "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
+          "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
+          "calibration_offset": "Correction permanente de l'angle des lames.",
+          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage."
         }
       },
       "operation": {
@@ -106,8 +110,16 @@
           "cloudy_target": "Position nuageux/standby",
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Seuil d'humidité maximum",
-          "min_elevation": "Élévation solaire minimum",
-          "calibration_elevation": "Élévation de calibration"
+          "min_elevation": "Élévation solaire minimum"
+        },
+        "data_description": {
+          "update_interval": "Fréquence d'exécution de la boucle de contrôle.",
+          "step_size": "La position est arrondie aux multiples de cette valeur pour réduire l'usure mécanique.",
+          "deadband": "Changement minimum de position requis pour déclencher un mouvement.",
+          "cloudy_target": "Position par défaut quand il fait nuageux ou en standby.",
+          "min_useful_percent": "En dessous de cette position, passe en standby.",
+          "humidity_max": "L'automatisation est bloquée quand l'humidité dépasse cette valeur.",
+          "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."
         }
       },
       "cloud_detection": {
@@ -118,6 +130,12 @@
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
           "hysteresis_duration": "Durée d'hystérésis"
+        },
+        "data_description": {
+          "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
+          "pv_sunny_ratio": "Fraction de la puissance max théorique indiquant un ensoleillement direct.",
+          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
+          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
         }
       }
     }

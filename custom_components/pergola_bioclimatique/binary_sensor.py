@@ -47,10 +47,12 @@ class PergolaBaseBinarySensor(
         coordinator: PergolaCoordinator,
         entry: ConfigEntry,
         key: str,
+        name: str,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_translation_key = key
+        self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
@@ -63,7 +65,7 @@ class PergolaSunnySensor(PergolaBaseBinarySensor):
     _attr_icon = "mdi:weather-sunny"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "is_sunny")
+        super().__init__(coordinator, entry, "is_sunny", "Ensoleillé")
 
     @property
     def is_on(self) -> bool:
@@ -75,7 +77,7 @@ class PergolaReadySensor(PergolaBaseBinarySensor):
     _attr_icon = "mdi:check-circle"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "ready")
+        super().__init__(coordinator, entry, "ready", "Prête")
 
     @property
     def is_on(self) -> bool:
@@ -86,7 +88,7 @@ class PergolaCalibratedTodaySensor(PergolaBaseBinarySensor):
     _attr_icon = "mdi:calibrate"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "calibrated_today")
+        super().__init__(coordinator, entry, "calibrated_today", "Calibrée aujourd'hui")
 
     @property
     def is_on(self) -> bool:

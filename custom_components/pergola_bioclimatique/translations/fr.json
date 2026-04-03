@@ -1,0 +1,141 @@
+{
+  "config": {
+    "error": {
+      "entity_not_found": "Entité introuvable. Vérifiez que l'intégration Sun est configurée."
+    },
+    "step": {
+      "user": {
+        "title": "Sélection des entités",
+        "description": "Sélectionnez les entités pour votre pergola bioclimatique.\n\nStatut de l'intégration Sun : **{sun_status}**",
+        "data": {
+          "name": "Nom",
+          "cover_entity": "Entité cover de la pergola",
+          "sun_azimuth_entity": "Capteur d'azimut solaire",
+          "sun_elevation_entity": "Capteur d'élévation solaire",
+          "pv_power_entity": "Capteur de puissance PV (détection nuage)",
+          "light_sensor_entity": "Capteur de luminosité (détection nuage alternative)",
+          "humidity_entity": "Capteur d'humidité",
+          "priority_lock_entity": "Capteur de verrouillage sécurité",
+          "priority_lock_timer_entity": "Capteur timer de verrouillage"
+        },
+        "data_description": {
+          "pv_power_entity": "Optionnel. Au moins un capteur PV ou luminosité est recommandé pour la détection nuage.",
+          "light_sensor_entity": "Optionnel. Utilisé comme alternative au PV pour la détection nuage.",
+          "humidity_entity": "Optionnel. Bloque l'automatisation quand l'humidité dépasse le seuil.",
+          "priority_lock_entity": "Optionnel. Surveille les verrous de sécurité (pluie, température, sécurité).",
+          "priority_lock_timer_entity": "Optionnel. Durée du verrou de sécurité."
+        }
+      },
+      "geometry": {
+        "title": "Paramètres géométriques",
+        "description": "Configurez la géométrie physique de votre pergola.",
+        "data": {
+          "face_azimuth": "Azimut de la pergola",
+          "max_opening_angle": "Angle d'ouverture maximum",
+          "calibration_offset": "Offset de calibration",
+          "summer_safety_margin": "Marge de sécurité été"
+        },
+        "data_description": {
+          "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
+          "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
+          "calibration_offset": "Correction permanente de l'angle des lames.",
+          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage."
+        }
+      },
+      "operation": {
+        "title": "Paramètres de fonctionnement",
+        "description": "Configurez le fonctionnement de la pergola.",
+        "data": {
+          "update_interval": "Intervalle de mise à jour",
+          "step_size": "Pas de quantisation",
+          "deadband": "Zone morte",
+          "cloudy_target": "Position nuageux/standby",
+          "min_useful_percent": "Position minimum utile",
+          "humidity_max": "Seuil d'humidité maximum",
+          "min_elevation": "Élévation solaire minimum",
+          "calibration_elevation": "Élévation de calibration"
+        },
+        "data_description": {
+          "update_interval": "Fréquence d'exécution de la boucle de contrôle.",
+          "step_size": "La position est arrondie aux multiples de cette valeur pour réduire l'usure mécanique.",
+          "deadband": "Changement minimum de position requis pour déclencher un mouvement.",
+          "cloudy_target": "Position par défaut quand il fait nuageux ou en standby.",
+          "min_useful_percent": "En dessous de cette position, passe en standby.",
+          "humidity_max": "L'automatisation est bloquée quand l'humidité dépasse cette valeur.",
+          "min_elevation": "L'automatisation est inactive quand le soleil est en dessous de cette élévation.",
+          "calibration_elevation": "Élévation solaire qui déclenche la calibration matinale."
+        }
+      },
+      "cloud_detection": {
+        "title": "Paramètres de détection nuage",
+        "description": "Configurez la détection soleil/nuage via votre capteur de puissance ou luminosité.",
+        "data": {
+          "pv_max_watts": "Puissance PV maximum",
+          "pv_sunny_ratio": "Ratio seuil ensoleillé",
+          "pv_smooth_alpha": "Coefficient de lissage",
+          "hysteresis_duration": "Durée d'hystérésis"
+        },
+        "data_description": {
+          "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
+          "pv_sunny_ratio": "Fraction de la puissance max théorique indiquant un ensoleillement direct.",
+          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
+          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Paramètres géométriques",
+        "description": "Modifiez les paramètres de géométrie.",
+        "data": {
+          "face_azimuth": "Azimut de la pergola",
+          "max_opening_angle": "Angle d'ouverture maximum",
+          "calibration_offset": "Offset de calibration",
+          "summer_safety_margin": "Marge de sécurité été"
+        }
+      },
+      "operation": {
+        "title": "Paramètres de fonctionnement",
+        "description": "Modifiez les paramètres de fonctionnement.",
+        "data": {
+          "update_interval": "Intervalle de mise à jour",
+          "step_size": "Pas de quantisation",
+          "deadband": "Zone morte",
+          "cloudy_target": "Position nuageux/standby",
+          "min_useful_percent": "Position minimum utile",
+          "humidity_max": "Seuil d'humidité maximum",
+          "min_elevation": "Élévation solaire minimum",
+          "calibration_elevation": "Élévation de calibration"
+        }
+      },
+      "cloud_detection": {
+        "title": "Paramètres de détection nuage",
+        "description": "Modifiez les paramètres de détection nuage.",
+        "data": {
+          "pv_max_watts": "Puissance PV maximum",
+          "pv_sunny_ratio": "Ratio seuil ensoleillé",
+          "pv_smooth_alpha": "Coefficient de lissage",
+          "hysteresis_duration": "Durée d'hystérésis"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "profile_angle": { "name": "Angle de profil" },
+      "solar_target": { "name": "Cible solaire" },
+      "final_target": { "name": "Cible finale" },
+      "pv_smooth": { "name": "PV lissé" }
+    },
+    "binary_sensor": {
+      "is_sunny": { "name": "Ensoleillé" },
+      "ready": { "name": "Prête" },
+      "calibrated_today": { "name": "Calibrée aujourd'hui" }
+    },
+    "select": {
+      "mode": { "name": "Mode" }
+    }
+  }
+}

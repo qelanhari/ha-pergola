@@ -33,10 +33,12 @@ class PergolaBaseButton(CoordinatorEntity[PergolaCoordinator], ButtonEntity):
         coordinator: PergolaCoordinator,
         entry: ConfigEntry,
         key: str,
+        name: str,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_translation_key = key
+        self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
@@ -49,7 +51,7 @@ class PergolaRecalibrateButton(PergolaBaseButton):
     _attr_icon = "mdi:calibrate"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "recalibrate")
+        super().__init__(coordinator, entry, "recalibrate", "Recalibrer")
 
     async def async_press(self) -> None:
         await self.coordinator.async_force_recalibrate()
@@ -59,7 +61,7 @@ class PergolaRefreshButton(PergolaBaseButton):
     _attr_icon = "mdi:refresh"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "refresh_target")
+        super().__init__(coordinator, entry, "refresh_target", "Recalculer la cible")
 
     async def async_press(self) -> None:
         await self.coordinator.async_force_refresh()

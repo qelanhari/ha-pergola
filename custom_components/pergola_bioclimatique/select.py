@@ -27,6 +27,7 @@ class PergolaModeSelectorEntity(
 ):
     _attr_has_entity_name = True
     _attr_translation_key = "mode"
+    _attr_name = "Mode"
     _attr_icon = "mdi:sun-snowflake-variant"
     _attr_options = MODES
 

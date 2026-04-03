@@ -1,0 +1,163 @@
+{
+  "config": {
+    "error": {
+      "entity_not_found": "Entity not found. Make sure the Sun integration is configured."
+    },
+    "step": {
+      "user": {
+        "title": "Entity Selection",
+        "description": "Select the entities for your pergola bioclimatique setup.\n\nSun integration status: **{sun_status}**",
+        "data": {
+          "name": "Name",
+          "cover_entity": "Pergola cover entity",
+          "sun_azimuth_entity": "Sun azimuth sensor",
+          "sun_elevation_entity": "Sun elevation sensor",
+          "pv_power_entity": "PV power sensor (for cloud detection)",
+          "light_sensor_entity": "Light sensor (alternative cloud detection)",
+          "humidity_entity": "Humidity sensor",
+          "priority_lock_entity": "Safety lock originator sensor",
+          "priority_lock_timer_entity": "Safety lock timer sensor"
+        },
+        "data_description": {
+          "pv_power_entity": "Optional. At least one of PV power or light sensor is recommended for cloud detection.",
+          "light_sensor_entity": "Optional. Used as alternative to PV power for cloud detection.",
+          "humidity_entity": "Optional. Blocks automation when humidity exceeds threshold.",
+          "priority_lock_entity": "Optional. Monitors safety locks (rain, temperature, security).",
+          "priority_lock_timer_entity": "Optional. Timer for safety lock duration."
+        }
+      },
+      "geometry": {
+        "title": "Geometry Parameters",
+        "description": "Configure the physical geometry of your pergola.",
+        "data": {
+          "face_azimuth": "Pergola face azimuth",
+          "max_opening_angle": "Maximum opening angle",
+          "calibration_offset": "Calibration offset",
+          "summer_safety_margin": "Summer safety margin"
+        },
+        "data_description": {
+          "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
+          "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
+          "calibration_offset": "Permanent correction offset for blade angle.",
+          "summer_safety_margin": "Extra margin added in summer mode for better shading."
+        }
+      },
+      "operation": {
+        "title": "Operation Parameters",
+        "description": "Configure how the pergola operates.",
+        "data": {
+          "update_interval": "Update interval",
+          "step_size": "Step size",
+          "deadband": "Deadband",
+          "cloudy_target": "Cloudy/standby position",
+          "min_useful_percent": "Minimum useful position",
+          "humidity_max": "Maximum humidity threshold",
+          "min_elevation": "Minimum sun elevation"
+        },
+        "data_description": {
+          "update_interval": "How often the control loop runs.",
+          "step_size": "Position is rounded to multiples of this value to reduce mechanical wear.",
+          "deadband": "Minimum position change required to trigger movement.",
+          "cloudy_target": "Default position when cloudy or in standby.",
+          "min_useful_percent": "Below this position, switch to standby instead.",
+          "humidity_max": "Automation is blocked when humidity exceeds this value.",
+          "min_elevation": "Below this sun elevation, the control loop and morning calibration are inactive."
+        }
+      },
+      "cloud_detection": {
+        "title": "Cloud Detection Parameters",
+        "description": "Configure sun/cloud detection using your power or light sensor.",
+        "data": {
+          "pv_max_watts": "PV maximum power",
+          "pv_sunny_ratio": "Sunny threshold ratio",
+          "pv_smooth_alpha": "Smoothing coefficient",
+          "hysteresis_duration": "Hysteresis duration"
+        },
+        "data_description": {
+          "pv_max_watts": "Peak power output of your PV sensor under ideal conditions.",
+          "pv_sunny_ratio": "Fraction of theoretical max power that indicates direct sun.",
+          "pv_smooth_alpha": "Weight of new readings vs. history (higher = more reactive).",
+          "hysteresis_duration": "Minimum time before switching between sunny/cloudy state."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Geometry Parameters",
+        "description": "Modify the physical geometry parameters.",
+        "data": {
+          "face_azimuth": "Pergola face azimuth",
+          "max_opening_angle": "Maximum opening angle",
+          "calibration_offset": "Calibration offset",
+          "summer_safety_margin": "Summer safety margin"
+        },
+        "data_description": {
+          "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
+          "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
+          "calibration_offset": "Permanent correction offset for blade angle.",
+          "summer_safety_margin": "Extra margin added in summer mode for better shading."
+        }
+      },
+      "operation": {
+        "title": "Operation Parameters",
+        "description": "Modify operation parameters.",
+        "data": {
+          "update_interval": "Update interval",
+          "step_size": "Step size",
+          "deadband": "Deadband",
+          "cloudy_target": "Cloudy/standby position",
+          "min_useful_percent": "Minimum useful position",
+          "humidity_max": "Maximum humidity threshold",
+          "min_elevation": "Minimum sun elevation"
+        },
+        "data_description": {
+          "update_interval": "How often the control loop runs.",
+          "step_size": "Position is rounded to multiples of this value to reduce mechanical wear.",
+          "deadband": "Minimum position change required to trigger movement.",
+          "cloudy_target": "Default position when cloudy or in standby.",
+          "min_useful_percent": "Below this position, switch to standby instead.",
+          "humidity_max": "Automation is blocked when humidity exceeds this value.",
+          "min_elevation": "Below this sun elevation, the control loop and morning calibration are inactive."
+        }
+      },
+      "cloud_detection": {
+        "title": "Cloud Detection Parameters",
+        "description": "Modify cloud detection parameters.",
+        "data": {
+          "pv_max_watts": "PV maximum power",
+          "pv_sunny_ratio": "Sunny threshold ratio",
+          "pv_smooth_alpha": "Smoothing coefficient",
+          "hysteresis_duration": "Hysteresis duration"
+        },
+        "data_description": {
+          "pv_max_watts": "Peak power output of your PV sensor under ideal conditions.",
+          "pv_sunny_ratio": "Fraction of theoretical max power that indicates direct sun.",
+          "pv_smooth_alpha": "Weight of new readings vs. history (higher = more reactive).",
+          "hysteresis_duration": "Minimum time before switching between sunny/cloudy state."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "profile_angle": { "name": "Profile Angle" },
+      "solar_target": { "name": "Solar Target" },
+      "final_target": { "name": "Final Target" },
+      "pv_smooth": { "name": "PV Smooth" }
+    },
+    "binary_sensor": {
+      "is_sunny": { "name": "Sunny" },
+      "ready": { "name": "Ready" },
+      "calibrated_today": { "name": "Calibrated Today" }
+    },
+    "select": {
+      "mode": { "name": "Mode" }
+    },
+    "button": {
+      "recalibrate": { "name": "Recalibrate" },
+      "refresh_target": { "name": "Refresh Target" }
+    }
+  }
+}

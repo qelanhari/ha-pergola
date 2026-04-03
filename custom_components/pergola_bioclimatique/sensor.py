@@ -48,12 +48,10 @@ class PergolaBaseSensor(CoordinatorEntity[PergolaCoordinator], SensorEntity):
         coordinator: PergolaCoordinator,
         entry: ConfigEntry,
         key: str,
-        name: str,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_translation_key = key
-        self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
@@ -67,7 +65,7 @@ class PergolaProfileAngleSensor(PergolaBaseSensor):
     _attr_icon = "mdi:angle-acute"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "profile_angle", "Angle de profil")
+        super().__init__(coordinator, entry, "profile_angle")
 
     @property
     def native_value(self) -> float:
@@ -79,7 +77,7 @@ class PergolaSolarTargetSensor(PergolaBaseSensor):
     _attr_icon = "mdi:sun-compass"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "solar_target", "Cible solaire")
+        super().__init__(coordinator, entry, "solar_target")
 
     @property
     def native_value(self) -> float:
@@ -91,7 +89,7 @@ class PergolaFinalTargetSensor(PergolaBaseSensor):
     _attr_icon = "mdi:target"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "final_target", "Cible finale")
+        super().__init__(coordinator, entry, "final_target")
 
     @property
     def native_value(self) -> float:
@@ -103,7 +101,7 @@ class PergolaPvSmoothSensor(PergolaBaseSensor):
     _attr_icon = "mdi:solar-power"
 
     def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "pv_smooth", "PV lissé")
+        super().__init__(coordinator, entry, "pv_smooth")
 
     @property
     def native_value(self) -> float:

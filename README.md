@@ -1,197 +1,165 @@
-# Bioclimatic Pergola — Home Assistant Blueprint
+# Pergola Bioclimatique — Home Assistant Custom Integration
 
-A Home Assistant blueprint to automatically control bioclimatic pergola slats
-based on solar position, with optional cloud detection via PV power, optional
-humidity blocking, and daily mechanical calibration.
+A Home Assistant custom integration that automatically controls bioclimatic pergola slats based on solar position, with optional cloud detection, humidity blocking, safety locks, and daily mechanical calibration.
 
-## Quick import
+**Replaces the previous blueprint + automations approach** with a single, self-contained device — no helpers needed.
 
-[![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fqelanhari%2Fha-pergola%2Fblob%2Fmain%2Fblueprints%2Fpergola_bioclimatique.yaml)
+## Installation
 
-Or manually: **Settings → Automations → Blueprints → Import blueprint**.
+### HACS (recommended)
 
----
+1. Add this repository as a custom repository in HACS.
+2. Install "Pergola Bioclimatique".
+3. Restart Home Assistant.
+4. Go to **Settings > Devices & Services > Add Integration > Pergola Bioclimatique**.
 
-## How it works
+### Manual
 
-### Winter mode
-
-The goal is to **capture maximum direct sunlight**.
-
-`profile_angle` encodes the full geometry (elevation + azimuth relative to the
-pergola face): it peaks when the sun directly faces the pergola, then decreases.
-
-By applying `max(solar_percent, current_position)` at every cycle, the pergola
-**rises with the solar profile** in the morning and **naturally holds its peak
-position** in the afternoon when the sun moves behind — no azimuth condition needed.
-
-```
-Morning   : profile_angle rises  →  15% → 30% → 60% → 80%
-Peak      : profile_angle at max  →  80%
-Afternoon : profile_angle falls, max() holds  →  80% → 80% → 80%
-Sun too low (< standby threshold)  →  60%
-```
-
-### Summer mode
-
-The goal is to **fully block direct radiation**.
-
-Slats orient in full opposition to the sun (+90°). The full range (0→100%) is
-used before flipping. As soon as 100% can no longer block the sun
-(`s_raw > max_opening_angle`), the slats immediately jump to the other extreme
-(~0%) — no progressive descent.
-
-```
-Morning  : s_raw ≤ 135°  →  ~67% → 100%
-Peak     : s_raw = 135°  →  100%
-Flip (s_raw > 135°)      →  ~0%
-Standby / overcast        →  60%
-```
-
-### Cloud detection
-
-If a PV power sensor is configured, cloud detection uses a smoothed power
-reading (exponential filter α = 0.4) compared to a dynamic threshold based on
-the angle of incidence. A 15-minute lock prevents oscillations during fast
-cloud cover changes.
-
-**Without a PV sensor**, the pergola always follows the solar target; standby
-still activates when the sun is too low.
-
-### Morning calibration
-
-Once per day, at the first cycle where the pergola would move, the slats fully
-close (mechanical zero reference), wait 45 s, then resume the calculated
-position. The calibration date is stored in an `input_text` helper to avoid
-repeating it within the same day.
+Copy the `custom_components/pergola_bioclimatique/` folder into your Home Assistant `config/custom_components/` directory and restart.
 
 ---
 
 ## Prerequisites
 
-### Solar position integration
+### Sun integration
 
-The blueprint requires two sensors: **solar azimuth** and **solar elevation**.
-Any integration that exposes these values works. The most common options:
+The integration requires the **Sun** integration to be configured in Home Assistant. It provides solar azimuth and elevation sensors needed for slat positioning.
 
-| Integration | Azimuth entity | Elevation entity | Notes |
-|---|---|---|---|
-| **Sun** *(built-in)* | `sensor.sun_solar_azimuth` | `sensor.sun_solar_elevation` | Default. Enable in Settings → Integrations → Sun. Uses your HA home coordinates. |
-| **Sun2** *(HACS)* | configurable | configurable | More accurate, supports multiple locations. |
-| **Astral** / custom template | any sensor | any sensor | Any source works as long as it exposes azimuth (0–360°) and elevation (degrees). |
-
-The blueprint pre-fills the Sun integration entity names. If you use a
-different integration, update the **Solar azimuth sensor** and
-**Solar elevation sensor** fields accordingly.
-
-### Required helpers
-
-Create these in **Settings → Devices & Services → Helpers**:
-
-| Suggested name | Type | Role |
-|---|---|---|
-| `input_select.pergola_mode` | Select | Options: Winter, Summer, Manual (labels are configurable) |
-| `input_text.pergola_last_calibration` | Text | Stores calibration date (YYYY-MM-DD) |
-| `input_boolean.pergola_ready` | Toggle | Enabled by the companion automation post-calibration |
-
-### Optional helpers
-
-Only needed if you configure PV-based cloud detection:
-
-| Suggested name | Type | Role |
-|---|---|---|
-| `input_number.pergola_pv_smooth` | Number (0–5000, step 0.1) | Smoothed PV power between cycles |
-| `input_boolean.pergola_sunny` | Toggle | Current sunny state (with 15-min hysteresis) |
-
-### Companion automations
-
-Copy the two files from the `automations/` folder into your HA config and adapt
-entity names to match your setup:
-
-| File | Role |
-|---|---|
-| `pergola_reset_morning_lock.yaml` | Resets `pergola_ready` to off every night at midnight |
-| `pergola_unlock_after_calibration.yaml` | Enables `pergola_ready` once calibration is done and sun > 20° |
-
-> The unlock automation includes an optional priority lock condition.
-> Remove it if you do not use a lock sensor.
+The config flow automatically detects `sensor.sun_solar_azimuth` and `sensor.sun_solar_elevation`. If you use a different source (Sun2, Astral, etc.), you can select any sensor entities manually.
 
 ---
 
-## Installation
+## Configuration
 
-1. Create the required helpers listed above.
-2. Import the blueprint (button above or manual URL).
-3. Create an automation from the blueprint and fill in the form.
-4. Copy and adapt the two companion automations.
-5. Enable all automations.
+The setup wizard guides you through 4 steps:
+
+### Step 1: Entity selection
+
+| Parameter | Required | Description |
+|---|---|---|
+| Pergola cover entity | Yes | The cover entity whose tilt is controlled |
+| Sun azimuth sensor | Yes | Auto-detected from Sun integration |
+| Sun elevation sensor | Yes | Auto-detected from Sun integration |
+| PV power sensor | No* | For cloud detection via solar power |
+| Light sensor | No* | Alternative cloud detection via luminosity |
+| Humidity sensor | No | Blocks automation above threshold |
+| Safety lock sensor | No | Monitors rain/temperature/security locks |
+| Safety lock timer | No | Duration of safety locks |
+
+*At least one of PV or light sensor is recommended for cloud detection. Without either, the pergola always follows the solar target.
+
+### Step 2: Geometry
+
+| Parameter | Default | Description |
+|---|---|---|
+| Face azimuth | 130° | Compass direction the pergola faces (0°=N, 90°=E, 180°=S) |
+| Maximum opening angle | 135° | Physical angle corresponding to 100% tilt |
+| Calibration offset | -10° | Permanent mechanical correction |
+| Summer safety margin | 10° | Extra shading margin in summer mode |
+
+### Step 3: Operation
+
+| Parameter | Default | Description |
+|---|---|---|
+| Update interval | 5 min | Control loop frequency |
+| Step size | 5% | Position quantization (reduces mechanical wear) |
+| Deadband | 2% | Minimum change to trigger movement |
+| Cloudy/standby position | 60% | Default position when overcast |
+| Minimum useful position | 9% | Below this, switch to standby |
+| Humidity threshold | 80% | Block automation above this humidity |
+| Minimum elevation | 5° | Inactive below this sun elevation |
+| Calibration elevation | 20° | Triggers morning calibration |
+
+### Step 4: Cloud detection (only if PV/light sensor configured)
+
+| Parameter | Default | Description |
+|---|---|---|
+| PV maximum power | 3000 W | Peak power under ideal conditions |
+| Sunny threshold ratio | 0.30 | Fraction of max indicating direct sun |
+| Smoothing coefficient | 0.4 | Reactivity (higher = more reactive) |
+| Hysteresis duration | 900 s | Minimum time before state switch |
+
+All parameters from steps 2-4 can be modified at runtime via **Options** without restarting.
 
 ---
 
-## Blueprint parameters
+## How it works
 
-### Geometry
+### Modes
 
-| Parameter | Default | Description |
-|---|---|---|
-| Face azimuth | `180°` | Direction the slats face at 100% open. 180° = South. |
-| Maximum slat angle | `135°` | Physical angle corresponding to 100% opening. |
-| Calibration offset | `0°` | Permanent mechanical correction. Adjust after observation. |
-| Summer safety margin | `10°` | Extra angle in Summer to guarantee shade at the flip point. |
+- **Hiver (Winter):** Follows the sun upward, holds peak position when sun descends. Maximizes direct sunlight.
+- **Ete (Summer):** Orients slats in full opposition (+90°). Flips to ~0% when max angle exceeded. Maximizes shade.
+- **Manuel (Manual):** Control loop disabled. Full manual control.
 
-### Behaviour
+### Solar geometry
 
-| Parameter | Default | Description |
-|---|---|---|
-| Position step size | `5%` | Target position resolution. Reduces unnecessary movements. |
-| Standby / overcast position | `60%` | Position when overcast or sun too low. |
-| Standby threshold | `9%` | Below this computed %, sun is too low → standby. |
-| Minimum solar elevation | `5°` | Below this elevation the automation does not run. |
+The integration computes a `profile_angle` from sun elevation and azimuth relative to the pergola face orientation. This angle drives the target tilt position.
 
-### Optional sensors
+### Cloud detection
 
-| Parameter | Default | Description |
-|---|---|---|
-| Humidity sensor | *(empty)* | If set, blocks the automation above the configured threshold. |
-| Humidity blocking threshold | `80%` | Only relevant when a humidity sensor is configured. |
-| Priority lock sensor | *(empty)* | If set, blocks the automation when state is `rain`, `temperature`, or `security`. |
-| PV power sensor | *(empty)* | If set, enables cloud detection. Leave empty to always track the sun. |
-| PV smooth helper | *(empty)* | Required when using a PV sensor. |
-| Sunny state helper | *(empty)* | Required when using a PV sensor. |
-| PV sensor tilt angle | `30°` | Tilt of the PV panel from horizontal. Used for the angle-of-incidence threshold. |
-| Estimated peak PV power | `3000 W` | Used to compute the dynamic sunny threshold. |
+When a PV or light sensor is configured, exponential smoothing with a dynamic threshold detects sunny/cloudy conditions. A configurable hysteresis (default 15 min) prevents rapid oscillations.
+
+### Morning calibration
+
+Each day, when sun elevation exceeds the calibration threshold:
+1. Slats close fully (mechanical zero reference)
+2. Wait 45 seconds
+3. Verify position < 5%
+4. Unlock for the day
+
+### Safety watchdog
+
+When a safety lock is active (rain/temperature/security):
+- **Temperature/security:** Force close
+- **Rain:** Hold current position
+- Resumes normal operation when lock clears
+
+---
+
+## Exposed entities
+
+All entities appear under a single "Pergola Bioclimatique" device:
+
+### Sensors
+- **Profile Angle** — Solar profile angle in degrees
+- **Solar Target** — Computed solar target position (%)
+- **Final Target** — Actual target after all logic (%)
+- **PV Smooth** — Smoothed PV power reading (W) *(if PV configured)*
+
+### Binary sensors
+- **Ready** — Unlocked after morning calibration
+- **Calibrated Today** — Whether calibration was done today
+- **Sunny** — Current sun/cloud state *(if PV/light configured)*
+
+### Select
+- **Mode** — Hiver / Ete / Manuel
 
 ---
 
 ## Calibrating the offset
 
-After installation, observe the pergola on a clear sunny morning:
+After installation, observe the pergola on a clear morning:
 
-- Slats seem **too closed** → increase `calibration_offset` (less negative).
-- Slats seem **too open** → decrease `calibration_offset` (more negative).
+- Slats too closed → increase calibration offset (less negative)
+- Slats too open → decrease calibration offset (more negative)
 
-Adjust, trigger the automation manually, observe. Repeat until slats are
-perpendicular to direct sunlight at solar noon.
+Adjust via Options, the integration applies changes immediately.
 
 ---
 
 ## Troubleshooting
 
-**Pergola does not move at all**
-→ Check that `pergola_ready` is `on`. If not, the unlock companion automation
-has not run yet — wait for the sun to rise above 20°.
+**Pergola does not move**
+Check that the "Ready" binary sensor is on. If not, wait for sun elevation to exceed the calibration threshold.
 
-**Pergola stays at 60% even in full sun (with PV sensor)**
-→ The smoothed PV power does not exceed the dynamic threshold. Check the PV
-sensor entity and increase `pv_max_w` to lower the threshold.
+**Stays at 60% in full sun (with PV sensor)**
+The smoothed PV power is below the threshold. Check the PV sensor and adjust PV max watts or sunny ratio in Options.
 
-**Pergola oscillates in Summer mode**
-→ `s_raw` is hovering around `max_opening_angle`. Increase
-`summer_safety_offset` by 5° to shift the flip point.
+**Oscillates in summer mode**
+Increase the summer safety margin by 5° in Options.
 
-**Calibration fails** (slats do not reach 0%)
-→ Check for mechanical blockage and confirm the cover entity responds to
-`cover.close_cover_tilt`.
+**Calibration fails**
+Check for mechanical blockage and confirm the cover entity responds to `cover.close_cover_tilt`.
 
 ---
 
@@ -199,9 +167,23 @@ sensor entity and increase `pv_max_w` to lower the threshold.
 
 ```
 ha-pergola/
-├── blueprints/
-│   └── pergola_bioclimatique.yaml          # Main blueprint (one-click HA import)
-└── automations/
-    ├── pergola_reset_morning_lock.yaml
-    └── pergola_unlock_after_calibration.yaml
+├── custom_components/
+│   └── pergola_bioclimatique/
+│       ├── __init__.py
+│       ├── manifest.json
+│       ├── config_flow.py
+│       ├── coordinator.py
+│       ├── solar.py
+│       ├── sensor.py
+│       ├── binary_sensor.py
+│       ├── select.py
+│       ├── const.py
+│       ├── strings.json
+│       └── translations/
+│           └── fr.json
+├── tests/
+│   ├── conftest.py
+│   └── test_solar.py
+├── hacs.json
+└── README.md
 ```

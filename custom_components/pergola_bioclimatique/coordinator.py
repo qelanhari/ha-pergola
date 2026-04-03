@@ -310,14 +310,23 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Main control loop — replaces the v3 bioclimat automation."""
         if self._mode == MODE_MANUAL:
+            _LOGGER.debug("Skip: mode is Manual")
             return self._build_data()
 
         azim = self._get_float(self._entity(CONF_SUN_AZIMUTH_ENTITY))
         elev = self._get_float(self._entity(CONF_SUN_ELEVATION_ENTITY))
         current_pos = self._get_cover_tilt()
 
+        _LOGGER.debug(
+            "Cycle start: mode=%s, azim=%.1f°, elev=%.1f°, current_pos=%.0f%%, "
+            "ready=%s, descent_cal=%s, sunny=%s",
+            self._mode, azim, elev, current_pos,
+            self._pergola_ready, self._descent_calibrated, self._is_sunny,
+        )
+
         min_elev = self._cfg(CONF_MIN_ELEVATION, 5)
         if elev <= min_elev:
+            _LOGGER.debug("Skip: elevation %.1f° ≤ min %.1f°", elev, min_elev)
             return self._build_data()
 
         # Check humidity block
@@ -326,6 +335,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             humidity = self._get_float(humidity_entity)
             humidity_max = self._cfg(CONF_HUMIDITY_MAX, 80)
             if humidity >= humidity_max:
+                _LOGGER.debug(
+                    "Skip: humidity %.0f%% ≥ max %.0f%%", humidity, humidity_max
+                )
                 return self._build_data()
 
         # Check safety lock
@@ -333,6 +345,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if lock_entity:
             lock_origin = self._get_state(lock_entity)
             if lock_origin in LOCK_ORIGINS:
+                _LOGGER.debug("Skip: safety lock active (%s)", lock_origin)
                 return self._build_data()
 
         # Solar geometry
@@ -358,52 +371,80 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._solar_target = solar_percent
 
+        _LOGGER.debug(
+            "Solar: profile_angle=%.1f°, solar_target=%.0f%%",
+            self._profile_angle, solar_percent,
+        )
+
         # Cloud detection (PV or light sensor)
         self._update_cloud_detection(azim, elev, face_azimuth)
 
-        # Final target
+        # Final target decision
         is_standby = solar_percent < min_useful
         if is_standby:
             final = cloudy_target
+            reason = "standby (solar %.0f%% < min %.0f%%)" % (
+                solar_percent, min_useful
+            )
         elif self._is_sunny:
             final = solar_percent
+            reason = "sunny → follow solar"
         elif self._mode == MODE_WINTER:
             final = max(cloudy_target, current_pos)
+            reason = "winter cloudy → hold max(cloudy %d%%, current %d%%)" % (
+                int(cloudy_target), int(current_pos)
+            )
         else:
             final = cloudy_target
+            reason = "summer cloudy → standby %d%%" % int(cloudy_target)
 
         final = solar.quantize(final, step)
         self._final_target = final
 
+        _LOGGER.debug(
+            "Decision: %s → final_target=%.0f%%", reason, final
+        )
+
         # Movement gating
         deadband = self._cfg(CONF_DEADBAND, 2)
-        if abs(final - current_pos) <= deadband:
+        delta = abs(final - current_pos)
+        if delta <= deadband:
+            _LOGGER.debug(
+                "No move: delta %.0f%% ≤ deadband %d%%", delta, deadband
+            )
             return self._build_data()
 
         if not self._pergola_ready:
+            _LOGGER.debug("No move: pergola not ready (awaiting calibration)")
             return self._build_data()
 
         # Descent calibration logic
         cover_id = self._entity(CONF_COVER_ENTITY)
         if not cover_id:
+            _LOGGER.debug("No move: no cover entity configured")
             return self._build_data()
 
         if final > current_pos + step:
-            # Opening: reset descent flag for next descent
             self._descent_calibrated = False
+            _LOGGER.debug("Opening: reset descent calibration flag")
 
         if final < current_pos - step and not self._descent_calibrated:
-            # Any significant descent requires recalibration first
             _LOGGER.info(
-                "Pergola: descent %d%% → %d%% requires recalibration",
+                "Descent %d%% → %d%% requires recalibration",
                 int(current_pos), int(final),
             )
             success = await self._async_recalibrate_descent(cover_id)
             if not success:
-                _LOGGER.warning("Pergola: descent recalibration failed, blocking movement")
+                _LOGGER.warning(
+                    "Descent recalibration failed — movement blocked"
+                )
                 return self._build_data()
+            _LOGGER.info("Descent recalibration OK")
 
         # Move pergola
+        _LOGGER.info(
+            "Moving: %d%% → %d%% (%s)", int(current_pos), int(final), reason
+        )
         await self.hass.services.async_call(
             "cover", "set_cover_tilt_position",
             service_data={"tilt_position": int(final)},
@@ -438,18 +479,39 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 azim, elev, face_azimuth, pv_max, ratio
             )
             sunny_now = self._pv_smooth > threshold
+            _LOGGER.debug(
+                "Cloud: pv_raw=%.0fW, pv_smooth=%.1fW, threshold=%.0fW → %s",
+                pv_raw, self._pv_smooth, threshold,
+                "sunny" if sunny_now else "cloudy",
+            )
         else:
-            # Light sensor: simple threshold (value > 400 lux = sunny)
             light_val = self._get_float(light_entity)
             self._pv_smooth = solar.smooth_pv(light_val, self._pv_smooth, alpha)
             sunny_now = self._pv_smooth > 400
+            _LOGGER.debug(
+                "Cloud: light=%.0f, smooth=%.1f, threshold=400 → %s",
+                light_val, self._pv_smooth,
+                "sunny" if sunny_now else "cloudy",
+            )
 
         # Hysteresis: only change state if enough time has passed
         elapsed = (datetime.now() - self._sunny_changed_at).total_seconds()
         if elapsed > hysteresis:
             if sunny_now != self._is_sunny:
+                _LOGGER.info(
+                    "Sun state changed: %s → %s (after %.0fs hysteresis)",
+                    "sunny" if self._is_sunny else "cloudy",
+                    "sunny" if sunny_now else "cloudy",
+                    elapsed,
+                )
                 self._is_sunny = sunny_now
                 self._sunny_changed_at = datetime.now()
+        elif sunny_now != self._is_sunny:
+            _LOGGER.debug(
+                "Cloud: would switch to %s but hysteresis locked (%.0fs / %ds)",
+                "sunny" if sunny_now else "cloudy",
+                elapsed, hysteresis,
+            )
 
     # --- Morning calibration ---
 

@@ -154,6 +154,10 @@
     },
     "select": {
       "mode": { "name": "Mode" }
+    },
+    "button": {
+      "recalibrate": { "name": "Recalibrer" },
+      "refresh_target": { "name": "Recalculer la cible" }
     }
   }
 }

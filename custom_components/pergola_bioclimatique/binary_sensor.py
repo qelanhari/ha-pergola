@@ -26,6 +26,7 @@ async def async_setup_entry(
     entities: list[BinarySensorEntity] = [
         PergolaReadySensor(coordinator, entry),
         PergolaCalibratedTodaySensor(coordinator, entry),
+        PergolaMovementProblemSensor(coordinator, entry),
     ]
 
     has_cloud_sensor = entry.data.get(CONF_PV_POWER_ENTITY) or entry.data.get(
@@ -91,3 +92,15 @@ class PergolaCalibratedTodaySensor(PergolaBaseBinarySensor):
     @property
     def is_on(self) -> bool:
         return self.coordinator.calibrated_today
+
+
+class PergolaMovementProblemSensor(PergolaBaseBinarySensor):
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_icon = "mdi:alert-circle"
+
+    def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "movement_problem")
+
+    @property
+    def is_on(self) -> bool:
+        return not self.coordinator.movement_ok

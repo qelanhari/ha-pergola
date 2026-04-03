@@ -85,6 +85,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._descent_calibrated: bool = False
         self._calibrating: bool = False
         self._watchdog_running: bool = False
+        self._consecutive_failures: int = 0
 
         # Computed values exposed to sensors
         self._profile_angle: float = 0.0
@@ -124,6 +125,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def final_target(self) -> float:
         return self._final_target
+
+    @property
+    def movement_ok(self) -> bool:
+        return self._consecutive_failures == 0
 
     # --- Config helpers ---
 
@@ -229,6 +234,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._last_calibration = None
             self._pergola_ready = data.get("pergola_ready", False)
             self._descent_calibrated = data.get("descent_calibrated", False)
+            self._consecutive_failures = data.get("consecutive_failures", 0)
             sunny_ts = data.get("sunny_changed_at")
             if sunny_ts:
                 try:
@@ -246,6 +252,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "pergola_ready": self._pergola_ready,
             "descent_calibrated": self._descent_calibrated,
+            "consecutive_failures": self._consecutive_failures,
             "sunny_changed_at": self._sunny_changed_at.isoformat(),
         })
 
@@ -256,6 +263,59 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._save_state()
         await self.async_request_refresh()
 
+    # --- Movement with verification ---
+
+    async def _async_move_and_verify(
+        self, cover_id: str, target: int, tolerance: int = 5, wait: int = 30,
+    ) -> bool:
+        """Send move command, wait, verify position reached."""
+        _LOGGER.debug("Command: set tilt to %d%%", target)
+        await self.hass.services.async_call(
+            "cover", "set_cover_tilt_position",
+            service_data={"tilt_position": target},
+            target={"entity_id": cover_id},
+        )
+        await asyncio.sleep(wait)
+        actual = self._get_cover_tilt()
+        ok = abs(actual - target) <= tolerance
+        if ok:
+            self._consecutive_failures = 0
+            _LOGGER.debug(
+                "Verify OK: target=%d%%, actual=%.0f%%", target, actual
+            )
+        else:
+            self._consecutive_failures += 1
+            _LOGGER.warning(
+                "Verify FAILED: target=%d%%, actual=%.0f%% (failure #%d)",
+                target, actual, self._consecutive_failures,
+            )
+        self.async_set_updated_data(self._build_data())
+        return ok
+
+    async def _async_close_and_verify(
+        self, cover_id: str, wait: int = 45,
+    ) -> bool:
+        """Send close command, wait, verify position < 5%."""
+        _LOGGER.debug("Command: close cover tilt")
+        await self.hass.services.async_call(
+            "cover", "close_cover_tilt",
+            target={"entity_id": cover_id},
+        )
+        await asyncio.sleep(wait)
+        pos = self._get_cover_tilt()
+        ok = pos < 5
+        if ok:
+            self._consecutive_failures = 0
+            _LOGGER.debug("Close verify OK: position=%.0f%%", pos)
+        else:
+            self._consecutive_failures += 1
+            _LOGGER.warning(
+                "Close verify FAILED: position=%.0f%% (failure #%d)",
+                pos, self._consecutive_failures,
+            )
+        self.async_set_updated_data(self._build_data())
+        return ok
+
     # --- Button actions ---
 
     async def async_force_recalibrate(self) -> None:
@@ -265,14 +325,8 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         _LOGGER.info("Pergola: forced recalibration requested")
-        await self.hass.services.async_call(
-            "cover", "close_cover_tilt",
-            target={"entity_id": cover_id},
-        )
-        await asyncio.sleep(45)
-
-        pos = self._get_cover_tilt()
-        if pos < 5:
+        success = await self._async_close_and_verify(cover_id)
+        if success:
             self._descent_calibrated = True
             self._last_calibration = date.today()
             self._pergola_ready = True
@@ -281,9 +335,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Recalculate and move to target
             await self.async_request_refresh()
         else:
-            _LOGGER.warning(
-                "Pergola: forced recalibration failed, position %.1f%%", pos
-            )
+            _LOGGER.warning("Pergola: forced recalibration failed")
 
     async def async_force_refresh(self) -> None:
         """Force a target recalculation without calibration."""
@@ -294,16 +346,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_recalibrate_descent(self, cover_id: str) -> bool:
         """Recalibrate before a descent. Returns True if successful."""
-        await self.hass.services.async_call(
-            "cover", "close_cover_tilt",
-            target={"entity_id": cover_id},
-        )
-        await asyncio.sleep(45)
-        pos = self._get_cover_tilt()
-        if pos < 5:
+        ok = await self._async_close_and_verify(cover_id)
+        if ok:
             self._descent_calibrated = True
-            return True
-        return False
+        return ok
 
     # --- Main control loop (called every N minutes by DataUpdateCoordinator) ---
 
@@ -445,11 +491,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.info(
             "Moving: %d%% → %d%% (%s)", int(current_pos), int(final), reason
         )
-        await self.hass.services.async_call(
-            "cover", "set_cover_tilt_position",
-            service_data={"tilt_position": int(final)},
-            target={"entity_id": cover_id},
-        )
+        await self._async_move_and_verify(cover_id, int(final))
 
         await self._save_state()
         return self._build_data()
@@ -546,18 +588,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             today = date.today()
             if self._last_calibration != today:
                 _LOGGER.info("Pergola: starting morning calibration")
-                await self.hass.services.async_call(
-                    "cover", "close_cover_tilt",
-                    target={"entity_id": cover_id},
-                )
-                await asyncio.sleep(45)
-
-                pos = self._get_cover_tilt()
-                if pos >= 5:
-                    _LOGGER.warning(
-                        "Pergola: calibration failed, position %.1f%% (expected < 5%%)",
-                        pos,
-                    )
+                success = await self._async_close_and_verify(cover_id)
+                if not success:
+                    _LOGGER.warning("Pergola: morning calibration failed")
                     return
 
                 self._last_calibration = today
@@ -613,18 +646,12 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     continue
 
                 if origin in ("temperature", "security"):
-                    await self.hass.services.async_call(
-                        "cover", "close_cover_tilt",
-                        target={"entity_id": cover_id},
-                    )
-                    await asyncio.sleep(120)
+                    await self._async_close_and_verify(cover_id)
+                    await asyncio.sleep(75)  # extra wait for safety
                 elif origin == LOCK_RAIN:
-                    # Hold current position
                     current = self._get_cover_tilt()
-                    await self.hass.services.async_call(
-                        "cover", "set_cover_tilt_position",
-                        service_data={"tilt_position": int(current)},
-                        target={"entity_id": cover_id},
+                    await self._async_move_and_verify(
+                        cover_id, int(current)
                     )
 
                 await asyncio.sleep(5)
@@ -646,4 +673,5 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "pergola_ready": self._pergola_ready,
             "calibrated_today": self.calibrated_today,
             "mode": self._mode,
+            "movement_ok": self.movement_ok,
         }

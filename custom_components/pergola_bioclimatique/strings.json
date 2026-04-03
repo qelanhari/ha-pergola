@@ -150,7 +150,8 @@
     "binary_sensor": {
       "is_sunny": { "name": "Sunny" },
       "ready": { "name": "Ready" },
-      "calibrated_today": { "name": "Calibrated Today" }
+      "calibrated_today": { "name": "Calibrated Today" },
+      "movement_problem": { "name": "Movement Problem" }
     },
     "select": {
       "mode": { "name": "Mode" }

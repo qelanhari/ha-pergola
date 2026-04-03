@@ -25,7 +25,6 @@ SUN_AZIMUTH_ENTITY = "sensor.sun_solar_azimuth"
 SUN_ELEVATION_ENTITY = "sensor.sun_solar_elevation"
 
 from .const import (
-    CONF_CALIBRATION_ELEVATION,
     CONF_CALIBRATION_OFFSET,
     CONF_CLOUDY_TARGET,
     CONF_COVER_ENTITY,
@@ -49,7 +48,6 @@ from .const import (
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
-    DEFAULT_CALIBRATION_ELEVATION,
     DEFAULT_CALIBRATION_OFFSET,
     DEFAULT_CLOUDY_TARGET,
     DEFAULT_DEADBAND,
@@ -217,16 +215,7 @@ def _operation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 default=d.get(CONF_MIN_ELEVATION, DEFAULT_MIN_ELEVATION),
             ): NumberSelector(
                 NumberSelectorConfig(
-                    min=0, max=20, step=1, mode=NumberSelectorMode.BOX,
-                    unit_of_measurement="°",
-                )
-            ),
-            vol.Required(
-                CONF_CALIBRATION_ELEVATION,
-                default=d.get(CONF_CALIBRATION_ELEVATION, DEFAULT_CALIBRATION_ELEVATION),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=10, max=40, step=1, mode=NumberSelectorMode.BOX,
+                    min=5, max=40, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="°",
                 )
             ),

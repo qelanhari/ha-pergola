@@ -92,14 +92,33 @@ class TestComputeSummerTarget:
         )
         assert 0 <= result <= 100
 
-    def test_clamp_to_100_when_exceeds_max(self) -> None:
-        """When raw > max_opening_angle, clamp to 100% (full opening)."""
+    def test_clamp_to_100_when_side_b_negative(self) -> None:
+        """Side A > max and side B ≤ 0 → stay at 100%."""
         result = compute_summer_target(
             profile_angle=80, calibration_offset=-10,
             safety_margin=10, max_opening_angle=135, step_size=5,
         )
-        # s_raw = 80 + 90 - 10 + 10 = 170 > 135 -> clamp to 100%
+        # side_a = 170 > 135, side_b = 80-90-10 = -20 ≤ 0 → 100%
         assert result == 100.0
+
+    def test_flip_to_side_b_when_viable(self) -> None:
+        """Side A > max and side B > 0 → flip to side B."""
+        result = compute_summer_target(
+            profile_angle=120, calibration_offset=-10,
+            safety_margin=10, max_opening_angle=135, step_size=5,
+        )
+        # side_a = 210 > 135, side_b = 120-90-10 = 20 > 0
+        # percent = 20/135*100 = 14.8% → quantize to 15%
+        assert result == 15.0
+
+    def test_flip_higher_profile(self) -> None:
+        """Late afternoon, high profile angle → side B gives open position."""
+        result = compute_summer_target(
+            profile_angle=150, calibration_offset=-10,
+            safety_margin=10, max_opening_angle=135, step_size=5,
+        )
+        # side_b = 150-90-10 = 50 → 50/135*100 = 37% → 35%
+        assert result == 35.0
 
     def test_midday_high_sun(self) -> None:
         """Profile angle 61° (sun high and facing) → should be 100%."""

@@ -43,14 +43,23 @@ def compute_summer_target(
 ) -> float:
     """Compute summer mode target: blades perpendicular to sun rays.
 
-    The ideal blade angle is profile_angle + 90° (perpendicular to rays).
-    When this exceeds max_opening_angle, clamp to 100% (max opening).
+    Side A: profile_angle + 90° (perpendicular to rays from one face).
+    When side A exceeds max, try side B (other blade face):
+      side B = profile_angle - 90° + offset.
+    If side B is not viable (≤ 0), stay at 100% (best available shade).
     """
-    raw_angle = profile_angle + 90 + calibration_offset + safety_margin
-    if raw_angle > max_opening_angle:
+    side_a = profile_angle + 90 + calibration_offset + safety_margin
+    if side_a <= max_opening_angle:
+        percent = angle_to_percent(side_a, max_opening_angle)
+        return quantize(percent, step_size)
+
+    # Side A exceeds max → try opposite blade face
+    side_b = profile_angle - 90 + calibration_offset
+    if side_b <= 0:
+        # Neither side viable → stay at max opening (best shade)
         return 100.0
 
-    percent = angle_to_percent(raw_angle, max_opening_angle)
+    percent = angle_to_percent(side_b, max_opening_angle)
     return quantize(percent, step_size)
 
 

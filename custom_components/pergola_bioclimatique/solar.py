@@ -41,12 +41,14 @@ def compute_summer_target(
     profile_angle: float, calibration_offset: float,
     safety_margin: float, max_opening_angle: float, step_size: float,
 ) -> float:
-    """Compute summer mode target: maximum shadow, flip if exceeds max."""
-    s_raw = profile_angle + 90 + calibration_offset + safety_margin
-    if s_raw <= max_opening_angle:
-        raw_angle = s_raw
-    else:
-        raw_angle = profile_angle - 90 + calibration_offset
+    """Compute summer mode target: blades perpendicular to sun rays.
+
+    The ideal blade angle is profile_angle + 90° (perpendicular to rays).
+    When this exceeds max_opening_angle, clamp to 100% (max opening).
+    """
+    raw_angle = profile_angle + 90 + calibration_offset + safety_margin
+    if raw_angle > max_opening_angle:
+        return 100.0
 
     percent = angle_to_percent(raw_angle, max_opening_angle)
     return quantize(percent, step_size)

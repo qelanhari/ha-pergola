@@ -235,12 +235,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._pergola_ready = data.get("pergola_ready", False)
             self._descent_calibrated = data.get("descent_calibrated", False)
             self._consecutive_failures = data.get("consecutive_failures", 0)
-            sunny_ts = data.get("sunny_changed_at")
-            if sunny_ts:
-                try:
-                    self._sunny_changed_at = datetime.fromisoformat(sunny_ts)
-                except ValueError:
-                    pass
+            # Do NOT restore sunny_changed_at — after restart, the first
+            # cloud detection reading should decide immediately without
+            # waiting for the hysteresis timer to expire.
 
     async def _save_state(self) -> None:
         await self._store.async_save({
@@ -253,7 +250,6 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "pergola_ready": self._pergola_ready,
             "descent_calibrated": self._descent_calibrated,
             "consecutive_failures": self._consecutive_failures,
-            "sunny_changed_at": self._sunny_changed_at.isoformat(),
         })
 
     # --- Mode control (called from SelectEntity) ---

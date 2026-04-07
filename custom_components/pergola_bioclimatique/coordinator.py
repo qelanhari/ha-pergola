@@ -86,6 +86,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._calibrating: bool = False
         self._watchdog_running: bool = False
         self._consecutive_failures: int = 0
+        self._first_run: bool = True
 
         # Computed values exposed to sensors
         self._profile_angle: float = 0.0
@@ -351,6 +352,11 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Main control loop — replaces the v3 bioclimat automation."""
+        if self._first_run:
+            self._first_run = False
+            _LOGGER.debug("First refresh: read-only, skipping movements")
+            return self._build_data()
+
         if self._mode == MODE_MANUAL:
             _LOGGER.debug("Skip: mode is Manual")
             return self._build_data()

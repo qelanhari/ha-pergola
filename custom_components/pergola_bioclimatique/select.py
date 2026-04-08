@@ -48,3 +48,4 @@ class PergolaModeSelectorEntity(
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.async_set_mode(option)
+        self.async_write_ha_state()

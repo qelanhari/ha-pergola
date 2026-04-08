@@ -87,6 +87,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._watchdog_running: bool = False
         self._consecutive_failures: int = 0
         self._first_run: bool = True
+        self._mode_just_changed: bool = False
 
         # Computed values exposed to sensors
         self._profile_angle: float = 0.0
@@ -256,6 +257,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # --- Mode control (called from SelectEntity) ---
 
     async def async_set_mode(self, mode: str) -> None:
+        self._mode_just_changed = True
         self._mode = mode
         await self._save_state()
         await self.async_request_refresh()
@@ -408,9 +410,11 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._profile_angle = solar.compute_profile_angle(elev, azim, face_azimuth)
 
         # Compute target based on mode
+        # After a mode switch, don't hold the previous position
+        hold_pos = 0.0 if self._mode_just_changed else current_pos
         if self._mode == MODE_WINTER:
             solar_percent = solar.compute_winter_target(
-                self._profile_angle, offset, current_pos, max_angle, step
+                self._profile_angle, offset, hold_pos, max_angle, step
             )
         else:
             solar_percent = solar.compute_summer_target(
@@ -438,9 +442,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             final = solar_percent
             reason = "sunny → follow solar"
         elif self._mode == MODE_WINTER:
-            final = max(cloudy_target, current_pos)
-            reason = "winter cloudy → hold max(cloudy %d%%, current %d%%)" % (
-                int(cloudy_target), int(current_pos)
+            final = max(cloudy_target, hold_pos)
+            reason = "winter cloudy → hold max(cloudy %d%%, pos %d%%)" % (
+                int(cloudy_target), int(hold_pos)
             )
         else:
             final = cloudy_target
@@ -448,6 +452,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         final = solar.quantize(final, step)
         self._final_target = final
+        self._mode_just_changed = False
 
         _LOGGER.debug(
             "Decision: %s → final_target=%.0f%%", reason, final

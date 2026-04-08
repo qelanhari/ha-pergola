@@ -76,6 +76,15 @@ class TestComputeWinterTarget:
         )
         assert result >= 50
 
+    def test_no_hold_after_mode_switch(self) -> None:
+        """After mode switch (current_pos=0), target follows solar freely."""
+        result = compute_winter_target(
+            profile_angle=30, calibration_offset=-10, current_pos=0,
+            max_opening_angle=135, step_size=5,
+        )
+        # raw_angle=20, percent=20/135*100≈14.8%, quantize→15%
+        assert result == 15.0
+
     def test_zero_angle(self) -> None:
         result = compute_winter_target(
             profile_angle=0, calibration_offset=-10, current_pos=0,

@@ -267,13 +267,29 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_move_and_verify(
         self, cover_id: str, target: int, tolerance: int = 5, wait: int = 30,
     ) -> bool:
-        """Send move command, wait, verify position reached."""
-        _LOGGER.debug("Command: set tilt to %d%%", target)
-        await self.hass.services.async_call(
-            "cover", "set_cover_tilt_position",
-            service_data={"tilt_position": target},
-            target={"entity_id": cover_id},
-        )
+        """Send move command, wait, verify position reached.
+
+        Uses open/close commands for 100%/0% to preserve motor calibration.
+        """
+        if target == 0:
+            _LOGGER.debug("Command: close cover tilt (0%%)")
+            await self.hass.services.async_call(
+                "cover", "close_cover_tilt",
+                target={"entity_id": cover_id},
+            )
+        elif target == 100:
+            _LOGGER.debug("Command: open cover tilt (100%%)")
+            await self.hass.services.async_call(
+                "cover", "open_cover_tilt",
+                target={"entity_id": cover_id},
+            )
+        else:
+            _LOGGER.debug("Command: set tilt to %d%%", target)
+            await self.hass.services.async_call(
+                "cover", "set_cover_tilt_position",
+                service_data={"tilt_position": target},
+                target={"entity_id": cover_id},
+            )
         await asyncio.sleep(wait)
         actual = self._get_cover_tilt()
         ok = abs(actual - target) <= tolerance

@@ -88,6 +88,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._consecutive_failures: int = 0
         self._first_run: bool = True
         self._mode_just_changed: bool = False
+        self._sunny_just_changed: bool = False
 
         # Computed values exposed to sensors
         self._profile_angle: float = 0.0
@@ -425,9 +426,16 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._profile_angle = solar.compute_profile_angle(elev, azim, face_azimuth)
 
+        # Cloud detection first — needed to decide whether to reset winter hold
+        self._update_cloud_detection(azim, elev, face_azimuth)
+
         # Compute target based on mode
-        # After a mode switch, don't hold the previous position
-        hold_pos = 0.0 if self._mode_just_changed else current_pos
+        # Reset hold after mode switch or cloudy→sunny transition so the
+        # winter hold doesn't lock in the cloudy_target position.
+        reset_hold = self._mode_just_changed or (
+            self._sunny_just_changed and self._is_sunny
+        )
+        hold_pos = 0.0 if reset_hold else current_pos
         if self._mode == MODE_WINTER:
             solar_percent = solar.compute_winter_target(
                 self._profile_angle, offset, hold_pos, max_angle, step
@@ -443,9 +451,6 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Solar: profile_angle=%.1f°, solar_target=%.0f%%",
             self._profile_angle, solar_percent,
         )
-
-        # Cloud detection (PV or light sensor)
-        self._update_cloud_detection(azim, elev, face_azimuth)
 
         # Final target decision
         is_standby = solar_percent < min_useful
@@ -469,6 +474,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         final = solar.quantize(final, step)
         self._final_target = final
         self._mode_just_changed = False
+        self._sunny_just_changed = False
 
         _LOGGER.debug(
             "Decision: %s → final_target=%.0f%%", reason, final
@@ -570,6 +576,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     elapsed,
                 )
                 self._is_sunny = sunny_now
+                self._sunny_just_changed = True
                 self._sunny_changed_at = datetime.now()
         elif sunny_now != self._is_sunny:
             _LOGGER.debug(

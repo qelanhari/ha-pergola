@@ -480,6 +480,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Decision: %s → final_target=%.0f%%", reason, final
         )
 
+        # Persist pv_smooth every cycle so restarts don't load a stale value
+        await self._save_state()
+
         # Movement gating
         deadband = self._cfg(CONF_DEADBAND, 2)
         delta = abs(final - current_pos)
@@ -521,8 +524,6 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Moving: %d%% → %d%% (%s)", int(current_pos), int(final), reason
         )
         await self._async_move_and_verify(cover_id, int(final))
-
-        await self._save_state()
         return self._build_data()
 
     def _update_cloud_detection(

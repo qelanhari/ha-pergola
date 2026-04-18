@@ -33,13 +33,17 @@
           "face_azimuth": "Pergola face azimuth",
           "max_opening_angle": "Maximum opening angle",
           "calibration_offset": "Calibration offset",
-          "summer_safety_margin": "Summer safety margin"
+          "summer_safety_margin": "Summer safety margin",
+          "summer_mode": "Summer algorithm",
+          "blade_pitch_ratio": "Blade pitch / width ratio"
         },
         "data_description": {
           "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
           "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
           "calibration_offset": "Permanent correction offset for blade angle.",
-          "summer_safety_margin": "Extra margin added in summer mode for better shading."
+          "summer_safety_margin": "Extra margin added in summer mode for better shading.",
+          "summer_mode": "perpendicular: blades perpendicular to sun (max shade). cutoff: minimum closure that still blocks direct rays (more airflow/light).",
+          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Used only in cutoff mode. Default 0.92 for waterproof louvers."
         }
       },
       "operation": {
@@ -91,13 +95,17 @@
           "face_azimuth": "Pergola face azimuth",
           "max_opening_angle": "Maximum opening angle",
           "calibration_offset": "Calibration offset",
-          "summer_safety_margin": "Summer safety margin"
+          "summer_safety_margin": "Summer safety margin",
+          "summer_mode": "Summer algorithm",
+          "blade_pitch_ratio": "Blade pitch / width ratio"
         },
         "data_description": {
           "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
           "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
           "calibration_offset": "Permanent correction offset for blade angle.",
-          "summer_safety_margin": "Extra margin added in summer mode for better shading."
+          "summer_safety_margin": "Extra margin added in summer mode for better shading.",
+          "summer_mode": "perpendicular: blades perpendicular to sun (max shade). cutoff: minimum closure that still blocks direct rays (more airflow/light).",
+          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Used only in cutoff mode. Default 0.92 for waterproof louvers."
         }
       },
       "operation": {
@@ -137,6 +145,14 @@
           "pv_smooth_alpha": "Weight of new readings vs. history (higher = more reactive).",
           "hysteresis_duration": "Minimum time before switching between sunny/cloudy state."
         }
+      }
+    }
+  },
+  "selector": {
+    "summer_mode": {
+      "options": {
+        "perpendicular": "Perpendicular to sun (full shade)",
+        "cutoff": "Cutoff (minimum closure, more airflow)"
       }
     }
   },

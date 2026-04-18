@@ -33,13 +33,17 @@
           "face_azimuth": "Azimut de la pergola",
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
-          "summer_safety_margin": "Marge de sécurité été"
+          "summer_safety_margin": "Marge de sécurité été",
+          "summer_mode": "Algorithme été",
+          "blade_pitch_ratio": "Ratio entraxe / largeur de lame"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
-          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage."
+          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
+          "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche."
         }
       },
       "operation": {
@@ -91,13 +95,17 @@
           "face_azimuth": "Azimut de la pergola",
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
-          "summer_safety_margin": "Marge de sécurité été"
+          "summer_safety_margin": "Marge de sécurité été",
+          "summer_mode": "Algorithme été",
+          "blade_pitch_ratio": "Ratio entraxe / largeur de lame"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
-          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage."
+          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
+          "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche."
         }
       },
       "operation": {
@@ -137,6 +145,14 @@
           "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
           "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
         }
+      }
+    }
+  },
+  "selector": {
+    "summer_mode": {
+      "options": {
+        "perpendicular": "Perpendiculaire au soleil (ombre totale)",
+        "cutoff": "Cutoff (fermeture minimale, plus d'aération)"
       }
     }
   },

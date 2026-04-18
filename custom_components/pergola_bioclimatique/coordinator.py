@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import solar
 from .const import (
+    CONF_BLADE_PITCH_RATIO,
     CONF_CALIBRATION_OFFSET,
     CONF_CLOUDY_TARGET,
     CONF_COVER_ENTITY,
@@ -39,10 +40,13 @@ from .const import (
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
     CONF_STEP_SIZE,
+    CONF_SUMMER_MODE,
     CONF_SUMMER_SAFETY_MARGIN,
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_BLADE_PITCH_RATIO,
+    DEFAULT_SUMMER_MODE,
     DOMAIN,
     LOCK_ORIGINS,
     LOCK_RAIN,
@@ -441,8 +445,13 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._profile_angle, offset, hold_pos, max_angle, step
             )
         else:
+            summer_mode = self._cfg(CONF_SUMMER_MODE, DEFAULT_SUMMER_MODE)
+            pitch_ratio = self._cfg(
+                CONF_BLADE_PITCH_RATIO, DEFAULT_BLADE_PITCH_RATIO
+            )
             solar_percent = solar.compute_summer_target(
-                self._profile_angle, offset, safety, max_angle, step
+                self._profile_angle, offset, safety, max_angle, step,
+                summer_mode, pitch_ratio,
             )
 
         self._solar_target = solar_percent

@@ -148,6 +148,51 @@ class TestComputeSummerTarget:
         assert abs(result - expected) < 5
 
 
+class TestComputeSummerTargetCutoff:
+    def test_cutoff_less_closed_than_perpendicular(self) -> None:
+        """At mid elevation, cutoff mode gives a smaller position than perpendicular."""
+        perp = compute_summer_target(
+            profile_angle=30, calibration_offset=0, safety_margin=0,
+            max_opening_angle=135, step_size=5,
+            mode="perpendicular",
+        )
+        cutoff = compute_summer_target(
+            profile_angle=30, calibration_offset=0, safety_margin=0,
+            max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        assert cutoff < perp
+
+    def test_cutoff_zero_profile(self) -> None:
+        """At profile 0, acos(0)=90° → raw_angle = 0 → 0%."""
+        result = compute_summer_target(
+            profile_angle=0, calibration_offset=0, safety_margin=0,
+            max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        assert result == 0.0
+
+    def test_cutoff_falls_through_to_side_b(self) -> None:
+        """Very high profile → side_a exceeds max → side_b viable."""
+        result = compute_summer_target(
+            profile_angle=120, calibration_offset=-10, safety_margin=10,
+            max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        # cutoff side_a likely exceeds 135 → side_b = 120-90-10 = 20 → 15%
+        assert result == 15.0
+
+    def test_cutoff_pitch_ratio_one_matches_side_a_bound(self) -> None:
+        """With P/W=1 at profile=90°, sin_arg=1 → infeasible → side B path."""
+        result = compute_summer_target(
+            profile_angle=90, calibration_offset=-10, safety_margin=0,
+            max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=1.0,
+        )
+        # side_a infeasible → side_b = 90-90-10 = -10 ≤ 0 → 100%
+        assert result == 100.0
+
+
 class TestComputePvThreshold:
     def test_returns_at_least_400(self) -> None:
         result = compute_pv_threshold(130, 5, 130, 3000, 0.30)

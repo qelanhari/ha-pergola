@@ -40,15 +40,25 @@ def compute_winter_target(
 def compute_summer_target(
     profile_angle: float, calibration_offset: float,
     safety_margin: float, max_opening_angle: float, step_size: float,
+    mode: str = "perpendicular", pitch_ratio: float = 0.92,
 ) -> float:
-    """Compute summer mode target: blades perpendicular to sun rays.
+    """Compute summer mode target.
 
-    Side A: profile_angle + 90° (perpendicular to rays from one face).
-    When side A exceeds max, try side B (other blade face):
-      side B = profile_angle - 90° + offset.
-    If side B is not viable (≤ 0), stay at 100% (best available shade).
+    mode="perpendicular": blades perpendicular to sun rays (full blocking).
+      side_a = profile_angle + 90°.
+
+    mode="cutoff": blades rotated only enough to block direct rays through
+      the gap between adjacent blades, given the pitch/width ratio.
+      side_a = profile_angle + 90° - arccos((P/W) * sin(profile_angle)).
+      Less closed than perpendicular → more airflow and diffuse light.
+
+    If side A exceeds max_opening_angle, falls back to side B (other blade
+    face): side B = profile_angle - 90° + offset. If side B ≤ 0, stays at
+    100% (best available shade).
     """
-    side_a = profile_angle + 90 + calibration_offset + safety_margin
+    side_a = _summer_side_a(profile_angle, mode, pitch_ratio) \
+        + calibration_offset + safety_margin
+
     if side_a <= max_opening_angle:
         percent = angle_to_percent(side_a, max_opening_angle)
         return quantize(percent, step_size)
@@ -56,11 +66,25 @@ def compute_summer_target(
     # Side A exceeds max → try opposite blade face
     side_b = profile_angle - 90 + calibration_offset
     if side_b <= 0:
-        # Neither side viable → stay at max opening (best shade)
         return 100.0
 
     percent = angle_to_percent(side_b, max_opening_angle)
     return quantize(percent, step_size)
+
+
+def _summer_side_a(
+    profile_angle: float, mode: str, pitch_ratio: float,
+) -> float:
+    """Blade raw angle for side A before offsets/margin."""
+    if mode != "cutoff":
+        return profile_angle + 90
+
+    sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
+    if sin_arg >= 1.0:
+        # No cutoff solution on side A → force fallback to side B
+        return float("inf")
+    delta = math.degrees(math.acos(sin_arg))
+    return profile_angle + 90 - delta
 
 
 def compute_pv_threshold(

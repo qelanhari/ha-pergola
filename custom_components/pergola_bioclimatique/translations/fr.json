@@ -73,13 +73,17 @@
         "description": "Configurez la détection soleil/nuage via votre capteur de puissance ou luminosité.",
         "data": {
           "pv_max_watts": "Puissance PV maximum",
+          "pv_panel_azimuth": "Azimut des panneaux PV",
+          "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
           "hysteresis_duration": "Durée d'hystérésis"
         },
         "data_description": {
           "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_sunny_ratio": "Fraction de la puissance max théorique indiquant un ensoleillement direct.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Utilisée pour modéliser la puissance ciel clair attendue.",
+          "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
+          "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
           "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
           "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
         }
@@ -135,13 +139,17 @@
         "description": "Modifiez les paramètres de détection nuage.",
         "data": {
           "pv_max_watts": "Puissance PV maximum",
+          "pv_panel_azimuth": "Azimut des panneaux PV",
+          "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
           "hysteresis_duration": "Durée d'hystérésis"
         },
         "data_description": {
           "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_sunny_ratio": "Fraction de la puissance max théorique indiquant un ensoleillement direct.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Utilisée pour modéliser la puissance ciel clair attendue.",
+          "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
+          "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
           "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
           "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
         }

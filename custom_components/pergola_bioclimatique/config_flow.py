@@ -44,6 +44,8 @@ from .const import (
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
+    CONF_PV_PANEL_AZIMUTH,
+    CONF_PV_PANEL_TILT,
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
@@ -64,6 +66,8 @@ from .const import (
     DEFAULT_MIN_ELEVATION,
     DEFAULT_MIN_USEFUL_PERCENT,
     DEFAULT_PV_MAX_WATTS,
+    DEFAULT_PV_PANEL_AZIMUTH,
+    DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_STEP_SIZE,
@@ -264,11 +268,29 @@ def _cloud_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 )
             ),
             vol.Required(
+                CONF_PV_PANEL_AZIMUTH,
+                default=d.get(CONF_PV_PANEL_AZIMUTH, DEFAULT_PV_PANEL_AZIMUTH),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_PV_PANEL_TILT,
+                default=d.get(CONF_PV_PANEL_TILT, DEFAULT_PV_PANEL_TILT),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=90, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
                 CONF_PV_SUNNY_RATIO,
                 default=d.get(CONF_PV_SUNNY_RATIO, DEFAULT_PV_SUNNY_RATIO),
             ): NumberSelector(
                 NumberSelectorConfig(
-                    min=0.1, max=0.8, step=0.05, mode=NumberSelectorMode.SLIDER,
+                    min=0.1, max=1.0, step=0.05, mode=NumberSelectorMode.SLIDER,
                 )
             ),
             vol.Required(

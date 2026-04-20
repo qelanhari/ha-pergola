@@ -173,14 +173,36 @@ class TestComputeSummerTargetCutoff:
         assert result == 0.0
 
     def test_cutoff_falls_through_to_side_b(self) -> None:
-        """Very high profile → side_a exceeds max → side_b viable."""
+        """High profile → side_a exceeds max → cutoff side_b used."""
         result = compute_summer_target(
             profile_angle=120, calibration_offset=-10, safety_margin=10,
             max_opening_angle=135, step_size=5,
             mode="cutoff", pitch_ratio=0.92,
         )
-        # cutoff side_a likely exceeds 135 → side_b = 120-90-10 = 20 → 15%
-        assert result == 15.0
+        # cutoff side_a ≈ 172.9° (exceeds 135)
+        # cutoff side_b = 120 - 90 + arccos(0.92·sin120°) = 67.1°
+        # + cal(-10) = 57.1° → 42.3% → quantized step 5 → 40%
+        assert result == 40.0
+
+    def test_cutoff_side_b_matches_field_30_percent(self) -> None:
+        """Field-tested: profile 105.6°, pitch 0.92, offset 0, margin 10 → 30%."""
+        result = compute_summer_target(
+            profile_angle=105.6, calibration_offset=0, safety_margin=10,
+            max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        assert result == 30.0
+
+    def test_perpendicular_side_b_unchanged(self) -> None:
+        """Perpendicular mode keeps the simple side_b fallback."""
+        result = compute_summer_target(
+            profile_angle=105.6, calibration_offset=0, safety_margin=10,
+            max_opening_angle=135, step_size=5,
+            mode="perpendicular",
+        )
+        # side_a = 105.6 + 90 + 10 = 205.6 > 135 → side_b = 105.6 - 90 = 15.6
+        # /135*100 = 11.55 → quantized step 5 → 10%
+        assert result == 10.0
 
     def test_cutoff_pitch_ratio_one_matches_side_a_bound(self) -> None:
         """With P/W=1 at profile=90°, sin_arg=1 → infeasible → side B path."""
@@ -195,16 +217,41 @@ class TestComputeSummerTargetCutoff:
 
 class TestComputePvThreshold:
     def test_returns_at_least_400(self) -> None:
-        result = compute_pv_threshold(130, 5, 130, 3000, 0.30)
+        result = compute_pv_threshold(
+            sun_elevation=5, sun_azimuth=130,
+            panel_azimuth=180, panel_tilt=30,
+            pv_max=3000, ratio=0.70,
+        )
         assert result >= 400
 
-    def test_high_sun_high_threshold(self) -> None:
-        result = compute_pv_threshold(130, 60, 130, 3000, 0.30)
-        assert result > 400
+    def test_face_on_sun_gives_near_peak_threshold(self) -> None:
+        """Sun at 50°/180° on a south-facing 30° panel → cos_aoi ≈ 0.985."""
+        result = compute_pv_threshold(
+            sun_elevation=50, sun_azimuth=180,
+            panel_azimuth=180, panel_tilt=30,
+            pv_max=3000, ratio=0.70,
+        )
+        # 0.985 × 3000 × 0.70 ≈ 2069
+        assert 2000 < result < 2150
 
-    def test_sun_behind_low_threshold(self) -> None:
-        result = compute_pv_threshold(310, 30, 130, 3000, 0.30)
-        assert result == 400  # cos_aoi near 0, falls to min
+    def test_off_axis_lower_threshold(self) -> None:
+        """Sun at 35°/250° on a south-facing 30° panel → cos_aoi ≈ 0.637."""
+        result = compute_pv_threshold(
+            sun_elevation=35, sun_azimuth=250,
+            panel_azimuth=180, panel_tilt=30,
+            pv_max=3000, ratio=0.70,
+        )
+        # 0.637 × 3000 × 0.70 ≈ 1338
+        assert 1280 < result < 1400
+
+    def test_sun_behind_floor(self) -> None:
+        """Sun far behind panel → cos_aoi clamped to 0 → 400 W floor."""
+        result = compute_pv_threshold(
+            sun_elevation=10, sun_azimuth=0,
+            panel_azimuth=180, panel_tilt=30,
+            pv_max=3000, ratio=0.70,
+        )
+        assert result == 400
 
 
 class TestSmoothPv:

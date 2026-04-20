@@ -1,7 +1,7 @@
 {
   "domain": "pergola_bioclimatique",
   "name": "Pergola Bioclimatique",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "documentation": "https://github.com/qelanhari/ha-pergola",
   "issue_tracker": "https://github.com/qelanhari/ha-pergola/issues",
   "dependencies": ["sun"],

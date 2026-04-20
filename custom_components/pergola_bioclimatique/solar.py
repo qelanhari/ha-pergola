@@ -63,8 +63,8 @@ def compute_summer_target(
         percent = angle_to_percent(side_a, max_opening_angle)
         return quantize(percent, step_size)
 
-    # Side A exceeds max → try opposite blade face
-    side_b = profile_angle - 90 + calibration_offset
+    # Side A exceeds max → fall back to side B using the same mode
+    side_b = _summer_side_b(profile_angle, mode, pitch_ratio) + calibration_offset
     if side_b <= 0:
         return 100.0
 
@@ -87,22 +87,38 @@ def _summer_side_a(
     return profile_angle + 90 - delta
 
 
+def _summer_side_b(
+    profile_angle: float, mode: str, pitch_ratio: float,
+) -> float:
+    """Blade raw angle for side B (fallback) before offset."""
+    if mode != "cutoff":
+        return profile_angle - 90
+
+    sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
+    if sin_arg >= 1.0:
+        return profile_angle - 90
+    delta = math.degrees(math.acos(sin_arg))
+    return profile_angle - 90 + delta
+
+
 def compute_pv_threshold(
-    azimuth: float, elevation: float, face_azimuth: float,
+    sun_elevation: float, sun_azimuth: float,
+    panel_azimuth: float, panel_tilt: float,
     pv_max: float, ratio: float,
 ) -> float:
     """Compute dynamic PV threshold for sun/cloud detection.
 
-    Uses angle-of-incidence cosine with a 30° panel tilt.
+    Uses the angle-of-incidence cosine for a panel with the given azimuth
+    and tilt, so the model reflects the actual roof orientation.
     """
-    elev_rad = math.radians(elevation)
-    delta_rad = math.radians(abs(azimuth - face_azimuth))
-    panel_tilt_rad = math.radians(30)
+    elev_rad = math.radians(sun_elevation)
+    tilt_rad = math.radians(panel_tilt)
+    delta_rad = math.radians(abs(sun_azimuth - panel_azimuth))
 
     cos_aoi = max(
         0.0,
-        math.sin(elev_rad) * math.cos(panel_tilt_rad)
-        + math.cos(elev_rad) * math.sin(panel_tilt_rad) * math.cos(delta_rad),
+        math.sin(elev_rad) * math.cos(tilt_rad)
+        + math.cos(elev_rad) * math.sin(tilt_rad) * math.cos(delta_rad),
     )
     return max(400.0, cos_aoi * pv_max * ratio)
 

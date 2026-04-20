@@ -36,6 +36,8 @@ from .const import (
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
+    CONF_PV_PANEL_AZIMUTH,
+    CONF_PV_PANEL_TILT,
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
@@ -46,6 +48,9 @@ from .const import (
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_BLADE_PITCH_RATIO,
+    DEFAULT_PV_PANEL_AZIMUTH,
+    DEFAULT_PV_PANEL_TILT,
+    DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_SUMMER_MODE,
     DOMAIN,
     LOCK_ORIGINS,
@@ -431,7 +436,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._profile_angle = solar.compute_profile_angle(elev, azim, face_azimuth)
 
         # Cloud detection first — needed to decide whether to reset winter hold
-        self._update_cloud_detection(azim, elev, face_azimuth)
+        self._update_cloud_detection(azim, elev)
 
         # Compute target based on mode
         # Reset hold after mode switch or cloudy→sunny transition so the
@@ -535,9 +540,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._async_move_and_verify(cover_id, int(final))
         return self._build_data()
 
-    def _update_cloud_detection(
-        self, azim: float, elev: float, face_azimuth: float
-    ) -> None:
+    def _update_cloud_detection(self, azim: float, elev: float) -> None:
         """Update PV smoothing and sunny state with hysteresis."""
         pv_entity = self._entity(CONF_PV_POWER_ENTITY)
         light_entity = self._entity(CONF_LIGHT_SENSOR_ENTITY)
@@ -555,9 +558,13 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._pv_smooth = solar.smooth_pv(pv_raw, self._pv_smooth, alpha)
 
             pv_max = self._cfg(CONF_PV_MAX_WATTS, 3000)
-            ratio = self._cfg(CONF_PV_SUNNY_RATIO, 0.30)
+            ratio = self._cfg(CONF_PV_SUNNY_RATIO, DEFAULT_PV_SUNNY_RATIO)
+            panel_azimuth = self._cfg(
+                CONF_PV_PANEL_AZIMUTH, DEFAULT_PV_PANEL_AZIMUTH
+            )
+            panel_tilt = self._cfg(CONF_PV_PANEL_TILT, DEFAULT_PV_PANEL_TILT)
             threshold = solar.compute_pv_threshold(
-                azim, elev, face_azimuth, pv_max, ratio
+                elev, azim, panel_azimuth, panel_tilt, pv_max, ratio,
             )
             sunny_now = self._pv_smooth > threshold
             _LOGGER.debug(

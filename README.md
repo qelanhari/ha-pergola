@@ -74,7 +74,9 @@ The setup wizard guides you through 4 steps:
 | Parameter | Default | Description |
 |---|---|---|
 | PV maximum power | 3000 W | Peak power under ideal conditions |
-| Sunny threshold ratio | 0.30 | Fraction of max indicating direct sun |
+| PV panel azimuth | 180° | Compass direction the panels face (0°=N, 180°=S) |
+| PV panel tilt | 30° | Panel tilt from horizontal (0°=flat, 90°=vertical) |
+| Sunny threshold ratio | 0.70 | Fraction of modelled clear-sky power above which it's sunny |
 | Smoothing coefficient | 0.4 | Reactivity (higher = more reactive) |
 | Hysteresis duration | 900 s | Minimum time before state switch |
 
@@ -96,7 +98,7 @@ The integration computes a `profile_angle` from sun elevation and azimuth relati
 
 ### Cloud detection
 
-When a PV or light sensor is configured, exponential smoothing with a dynamic threshold detects sunny/cloudy conditions. A configurable hysteresis (default 15 min) prevents rapid oscillations.
+When a PV or light sensor is configured, exponential smoothing with a dynamic threshold detects sunny/cloudy conditions. The threshold is `ratio × pv_max × cos(angle_of_incidence)` using the configured panel azimuth and tilt, floored at 400 W — so it scales naturally with sun position through the day and across seasons. A configurable hysteresis (default 15 min) prevents rapid oscillations.
 
 ### Morning calibration
 

@@ -73,13 +73,17 @@
         "description": "Configure sun/cloud detection using your power or light sensor.",
         "data": {
           "pv_max_watts": "PV maximum power",
+          "pv_panel_azimuth": "PV panel azimuth",
+          "pv_panel_tilt": "PV panel tilt",
           "pv_sunny_ratio": "Sunny threshold ratio",
           "pv_smooth_alpha": "Smoothing coefficient",
           "hysteresis_duration": "Hysteresis duration"
         },
         "data_description": {
           "pv_max_watts": "Peak power output of your PV sensor under ideal conditions.",
-          "pv_sunny_ratio": "Fraction of theoretical max power that indicates direct sun.",
+          "pv_panel_azimuth": "Compass direction the PV panels face (0°=N, 90°=E, 180°=S, 270°=W). Used to model expected clear-sky power.",
+          "pv_panel_tilt": "Tilt angle of the PV panels in degrees (0° = horizontal, 90° = vertical).",
+          "pv_sunny_ratio": "Fraction of modelled clear-sky power above which the sky is considered sunny.",
           "pv_smooth_alpha": "Weight of new readings vs. history (higher = more reactive).",
           "hysteresis_duration": "Minimum time before switching between sunny/cloudy state."
         }
@@ -135,13 +139,17 @@
         "description": "Modify cloud detection parameters.",
         "data": {
           "pv_max_watts": "PV maximum power",
+          "pv_panel_azimuth": "PV panel azimuth",
+          "pv_panel_tilt": "PV panel tilt",
           "pv_sunny_ratio": "Sunny threshold ratio",
           "pv_smooth_alpha": "Smoothing coefficient",
           "hysteresis_duration": "Hysteresis duration"
         },
         "data_description": {
           "pv_max_watts": "Peak power output of your PV sensor under ideal conditions.",
-          "pv_sunny_ratio": "Fraction of theoretical max power that indicates direct sun.",
+          "pv_panel_azimuth": "Compass direction the PV panels face (0°=N, 90°=E, 180°=S, 270°=W). Used to model expected clear-sky power.",
+          "pv_panel_tilt": "Tilt angle of the PV panels in degrees (0° = horizontal, 90° = vertical).",
+          "pv_sunny_ratio": "Fraction of modelled clear-sky power above which the sky is considered sunny.",
           "pv_smooth_alpha": "Weight of new readings vs. history (higher = more reactive).",
           "hysteresis_duration": "Minimum time before switching between sunny/cloudy state."
         }

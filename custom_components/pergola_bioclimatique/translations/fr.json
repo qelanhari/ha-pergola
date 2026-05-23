@@ -35,7 +35,8 @@
           "calibration_offset": "Offset de calibration",
           "summer_safety_margin": "Marge de sécurité été",
           "summer_mode": "Algorithme été",
-          "blade_pitch_ratio": "Ratio entraxe / largeur de lame"
+          "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
+          "side_fallback": "Comportement quand le soleil est trop haut pour la face A"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
@@ -43,7 +44,8 @@
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
           "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche."
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche.",
+          "side_fallback": "clamp : reste fermée (100%) quand le soleil est trop haut pour atteindre la perpendiculaire sur la face A. flip : bascule sur la face opposée (ancien comportement, ouverture brutale autour de midi)."
         }
       },
       "operation": {
@@ -77,15 +79,23 @@
           "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
-          "hysteresis_duration": "Durée d'hystérésis"
+          "hysteresis_duration": "Durée d'hystérésis",
+          "lux_sunny_ratio": "Seuil lux ensoleillé (× sin(élévation))",
+          "pv_observable_cos": "Seuil cosinus PV observable",
+          "lux_az_min": "Lux observable : azimut min du soleil",
+          "lux_az_max": "Lux observable : azimut max du soleil"
         },
         "data_description": {
           "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Utilisée pour modéliser la puissance ciel clair attendue.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'azimut de la pergola — à modifier seulement si les panneaux sont sur un autre pan de toit.",
           "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
           "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
           "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
-          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
+          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux.",
+          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation) = ensoleillé. À calibrer depuis une mesure de plein midi clair.",
+          "pv_observable_cos": "Le PV ne vote « ensoleillé » que si cos(angle d'incidence sur le panneau) dépasse ce seuil — évite les faux nuageux quand le panneau est trop hors-axe ou ombragé.",
+          "lux_az_min": "Azimut solaire (°) à partir duquel le capteur lux voit le soleil direct.",
+          "lux_az_max": "Azimut solaire (°) au-delà duquel le capteur lux ne voit plus le soleil direct."
         }
       }
     }
@@ -101,7 +111,8 @@
           "calibration_offset": "Offset de calibration",
           "summer_safety_margin": "Marge de sécurité été",
           "summer_mode": "Algorithme été",
-          "blade_pitch_ratio": "Ratio entraxe / largeur de lame"
+          "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
+          "side_fallback": "Comportement quand le soleil est trop haut pour la face A"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
@@ -109,7 +120,8 @@
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
           "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche."
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche.",
+          "side_fallback": "clamp : reste fermée (100%) quand le soleil est trop haut pour atteindre la perpendiculaire sur la face A. flip : bascule sur la face opposée (ancien comportement, ouverture brutale autour de midi)."
         }
       },
       "operation": {
@@ -143,15 +155,23 @@
           "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
-          "hysteresis_duration": "Durée d'hystérésis"
+          "hysteresis_duration": "Durée d'hystérésis",
+          "lux_sunny_ratio": "Seuil lux ensoleillé (× sin(élévation))",
+          "pv_observable_cos": "Seuil cosinus PV observable",
+          "lux_az_min": "Lux observable : azimut min du soleil",
+          "lux_az_max": "Lux observable : azimut max du soleil"
         },
         "data_description": {
           "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Utilisée pour modéliser la puissance ciel clair attendue.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'azimut de la pergola — à modifier seulement si les panneaux sont sur un autre pan de toit.",
           "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
           "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
           "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
-          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux."
+          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux.",
+          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation) = ensoleillé. À calibrer depuis une mesure de plein midi clair.",
+          "pv_observable_cos": "Le PV ne vote « ensoleillé » que si cos(angle d'incidence sur le panneau) dépasse ce seuil — évite les faux nuageux quand le panneau est trop hors-axe ou ombragé.",
+          "lux_az_min": "Azimut solaire (°) à partir duquel le capteur lux voit le soleil direct.",
+          "lux_az_max": "Azimut solaire (°) au-delà duquel le capteur lux ne voit plus le soleil direct."
         }
       }
     }
@@ -161,6 +181,12 @@
       "options": {
         "perpendicular": "Perpendiculaire au soleil (ombre totale)",
         "cutoff": "Cutoff (fermeture minimale, plus d'aération)"
+      }
+    },
+    "side_fallback": {
+      "options": {
+        "clamp": "Reste fermée à 100%",
+        "flip": "Bascule sur la face opposée (ancien)"
       }
     }
   },

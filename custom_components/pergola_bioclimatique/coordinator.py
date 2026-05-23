@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -30,17 +31,22 @@ from .const import (
     CONF_HUMIDITY_MAX,
     CONF_HYSTERESIS_DURATION,
     CONF_LIGHT_SENSOR_ENTITY,
+    CONF_LUX_AZ_MAX,
+    CONF_LUX_AZ_MIN,
+    CONF_LUX_SUNNY_RATIO,
     CONF_MAX_OPENING_ANGLE,
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
+    CONF_PV_OBSERVABLE_COS,
     CONF_PV_PANEL_AZIMUTH,
     CONF_PV_PANEL_TILT,
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_SIDE_FALLBACK,
     CONF_STEP_SIZE,
     CONF_SUMMER_MODE,
     CONF_SUMMER_SAFETY_MARGIN,
@@ -48,9 +54,14 @@ from .const import (
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_BLADE_PITCH_RATIO,
+    DEFAULT_LUX_AZ_MAX,
+    DEFAULT_LUX_AZ_MIN,
+    DEFAULT_LUX_SUNNY_RATIO,
+    DEFAULT_PV_OBSERVABLE_COS,
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_SIDE_FALLBACK,
     DEFAULT_SUMMER_MODE,
     DOMAIN,
     LOCK_ORIGINS,
@@ -87,6 +98,8 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Internal state (replaces all helper entities)
         self._mode: str = MODE_WINTER
         self._pv_smooth: float = 0.0
+        self._lux_smooth: float = 0.0
+        self._pv_smooth_stale: bool = True
         self._is_sunny: bool = False
         self._sunny_changed_at: datetime = datetime.min
         self._last_calibration: date | None = None
@@ -236,6 +249,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         data = await self._store.async_load()
         if data:
             self._pv_smooth = data.get("pv_smooth", 0.0)
+            self._lux_smooth = data.get("lux_smooth", 0.0)
+            # Persisted pv/lux are stale across long gaps (overnight); the
+            # first morning cycle reseeds them from the live sensor.
+            self._pv_smooth_stale = True
             self._is_sunny = data.get("is_sunny", False)
             self._mode = data.get("mode", MODE_WINTER)
             last_cal = data.get("last_calibration")
@@ -254,6 +271,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _save_state(self) -> None:
         await self._store.async_save({
             "pv_smooth": self._pv_smooth,
+            "lux_smooth": self._lux_smooth,
             "is_sunny": self._is_sunny,
             "mode": self._mode,
             "last_calibration": (
@@ -454,28 +472,49 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             pitch_ratio = self._cfg(
                 CONF_BLADE_PITCH_RATIO, DEFAULT_BLADE_PITCH_RATIO
             )
+            side_fallback = self._cfg(
+                CONF_SIDE_FALLBACK, DEFAULT_SIDE_FALLBACK
+            )
             solar_percent = solar.compute_summer_target(
                 self._profile_angle, offset, safety, max_angle, step,
-                summer_mode, pitch_ratio,
+                summer_mode, pitch_ratio, side_fallback,
             )
 
         self._solar_target = solar_percent
 
-        _LOGGER.debug(
-            "Solar: profile_angle=%.1f°, solar_target=%.0f%%",
-            self._profile_angle, solar_percent,
-        )
-
-        # Final target decision
-        is_standby = solar_percent < min_useful
-        if is_standby:
-            final = cloudy_target
-            reason = "standby (solar %.0f%% < min %.0f%%)" % (
-                solar_percent, min_useful
+        if self._mode == MODE_WINTER:
+            _LOGGER.debug(
+                "Solar: profile_angle=%.1f°, solar_target=%.0f%%, "
+                "sunny=%s, cloudy_target=%d%%, min_useful=%d%%",
+                self._profile_angle, solar_percent,
+                self._is_sunny, int(cloudy_target), int(min_useful),
             )
-        elif self._is_sunny:
+        else:
+            ceiling = solar.compute_summer_ceiling(
+                self._profile_angle, offset, safety, pitch_ratio,
+            )
+            _LOGGER.debug(
+                "Solar: profile_angle=%.1f°, solar_target=%.0f%%, "
+                "ceiling=%.1f° (max=%d°), sunny=%s, cloudy_target=%d%%, "
+                "min_useful=%d%%",
+                self._profile_angle, solar_percent, ceiling, int(max_angle),
+                self._is_sunny, int(cloudy_target), int(min_useful),
+            )
+
+        # Final target decision.
+        # Priority: trust the geometry when the sun is actually shining,
+        # even if solar_percent is small (blades flat is a legitimate output
+        # for an overhead sun). The min_useful standby is only meant for
+        # twilight situations where the geometry alone would point too low.
+        if self._is_sunny:
             final = solar_percent
-            reason = "sunny → follow solar"
+            reason = "sunny → follow solar (%.0f%%)" % solar_percent
+        elif solar_percent < min_useful:
+            final = cloudy_target
+            reason = (
+                "standby (no sun & solar %.0f%% < min %.0f%%) → cloudy %d%%"
+                % (solar_percent, min_useful, int(cloudy_target))
+            )
         elif self._mode == MODE_WINTER:
             final = max(cloudy_target, hold_pos)
             reason = "winter cloudy → hold max(cloudy %d%%, pos %d%%)" % (
@@ -541,21 +580,37 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._build_data()
 
     def _update_cloud_detection(self, azim: float, elev: float) -> None:
-        """Update PV smoothing and sunny state with hysteresis."""
+        """Update smoothed sensors and sunny state with observability gates.
+
+        Each sensor (PV, lux) is only counted when the sun is geometrically
+        able to reach it. When neither sensor is observable, the prior
+        is_sunny is preserved so a brief blind-spot doesn't flip state.
+        """
         pv_entity = self._entity(CONF_PV_POWER_ENTITY)
         light_entity = self._entity(CONF_LIGHT_SENSOR_ENTITY)
 
         if not pv_entity and not light_entity:
-            # No cloud detection sensor: assume sunny
             self._is_sunny = True
             return
 
         alpha = self._cfg(CONF_PV_SMOOTH_ALPHA, 0.4)
         hysteresis = self._cfg(CONF_HYSTERESIS_DURATION, 900)
 
+        # PV branch ---------------------------------------------------------
+        pv_threshold = 0.0
+        pv_observable = False
+        pv_raw = 0.0
         if pv_entity:
             pv_raw = self._get_float(pv_entity)
-            self._pv_smooth = solar.smooth_pv(pv_raw, self._pv_smooth, alpha)
+            if self._pv_smooth_stale:
+                # Persisted value carries over from yesterday's PV. Reseed
+                # from the live sensor on the first cycle that has a
+                # plausible reading.
+                self._pv_smooth = pv_raw
+            else:
+                self._pv_smooth = solar.smooth_pv(
+                    pv_raw, self._pv_smooth, alpha
+                )
 
             pv_max = self._cfg(CONF_PV_MAX_WATTS, 3000)
             ratio = self._cfg(CONF_PV_SUNNY_RATIO, DEFAULT_PV_SUNNY_RATIO)
@@ -563,24 +618,70 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 CONF_PV_PANEL_AZIMUTH, DEFAULT_PV_PANEL_AZIMUTH
             )
             panel_tilt = self._cfg(CONF_PV_PANEL_TILT, DEFAULT_PV_PANEL_TILT)
-            threshold = solar.compute_pv_threshold(
+            pv_threshold = solar.compute_pv_threshold(
                 elev, azim, panel_azimuth, panel_tilt, pv_max, ratio,
             )
-            sunny_now = self._pv_smooth > threshold
-            _LOGGER.debug(
-                "Cloud: pv_raw=%.0fW, pv_smooth=%.1fW, threshold=%.0fW → %s",
-                pv_raw, self._pv_smooth, threshold,
-                "sunny" if sunny_now else "cloudy",
+            cos_aoi = solar.panel_cos_aoi(
+                elev, azim, panel_azimuth, panel_tilt
             )
-        else:
-            light_val = self._get_float(light_entity)
-            self._pv_smooth = solar.smooth_pv(light_val, self._pv_smooth, alpha)
-            sunny_now = self._pv_smooth > 400
-            _LOGGER.debug(
-                "Cloud: light=%.0f, smooth=%.1f, threshold=400 → %s",
-                light_val, self._pv_smooth,
-                "sunny" if sunny_now else "cloudy",
+            obs_cos = self._cfg(
+                CONF_PV_OBSERVABLE_COS, DEFAULT_PV_OBSERVABLE_COS
             )
+            pv_observable = cos_aoi > obs_cos
+            _LOGGER.debug(
+                "Cloud PV: raw=%.0fW, smooth=%.1fW, thr=%.0fW, "
+                "cos_aoi=%.2f (>%.2f? %s)",
+                pv_raw, self._pv_smooth, pv_threshold,
+                cos_aoi, obs_cos, pv_observable,
+            )
+
+        # Lux branch --------------------------------------------------------
+        lux_threshold = 0.0
+        lux_observable = False
+        lux_raw = 0.0
+        if light_entity:
+            lux_raw = self._get_float(light_entity)
+            if self._pv_smooth_stale:
+                self._lux_smooth = lux_raw
+            else:
+                self._lux_smooth = solar.smooth_pv(
+                    lux_raw, self._lux_smooth, alpha
+                )
+
+            lux_ratio = self._cfg(
+                CONF_LUX_SUNNY_RATIO, DEFAULT_LUX_SUNNY_RATIO
+            )
+            lux_threshold = lux_ratio * math.sin(
+                math.radians(max(0.0, elev))
+            )
+            az_min = self._cfg(CONF_LUX_AZ_MIN, DEFAULT_LUX_AZ_MIN)
+            az_max = self._cfg(CONF_LUX_AZ_MAX, DEFAULT_LUX_AZ_MAX)
+            lux_observable = az_min <= azim <= az_max
+            _LOGGER.debug(
+                "Cloud lux: raw=%.0f, smooth=%.1f, thr=%.0f, "
+                "azim=%.1f in [%.0f,%.0f]? %s",
+                lux_raw, self._lux_smooth, lux_threshold,
+                azim, az_min, az_max, lux_observable,
+            )
+
+        # Stale flag is cleared after the first reseeding cycle. Also wipe
+        # the carried-over is_sunny so the first decision on a new day is
+        # not inherited from yesterday evening.
+        if self._pv_smooth_stale:
+            self._is_sunny = False
+            self._sunny_changed_at = datetime.min
+        self._pv_smooth_stale = False
+
+        sunny_now = solar.is_sunny(
+            self._pv_smooth, pv_threshold, pv_observable,
+            self._lux_smooth, lux_threshold, lux_observable,
+            self._is_sunny,
+        )
+        _LOGGER.debug(
+            "Cloud decision: %s (pv_obs=%s, lux_obs=%s)",
+            "sunny" if sunny_now else "cloudy",
+            pv_observable, lux_observable,
+        )
 
         # Hysteresis: only change state if enough time has passed
         elapsed = (datetime.now() - self._sunny_changed_at).total_seconds()

@@ -19,6 +19,7 @@ CONF_CALIBRATION_OFFSET = "calibration_offset"
 CONF_SUMMER_SAFETY_MARGIN = "summer_safety_margin"
 CONF_SUMMER_MODE = "summer_mode"
 CONF_BLADE_PITCH_RATIO = "blade_pitch_ratio"
+CONF_SIDE_FALLBACK = "side_fallback"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -36,6 +37,10 @@ CONF_PV_SMOOTH_ALPHA = "pv_smooth_alpha"
 CONF_HYSTERESIS_DURATION = "hysteresis_duration"
 CONF_PV_PANEL_AZIMUTH = "pv_panel_azimuth"
 CONF_PV_PANEL_TILT = "pv_panel_tilt"
+CONF_LUX_SUNNY_RATIO = "lux_sunny_ratio"
+CONF_PV_OBSERVABLE_COS = "pv_observable_cos"
+CONF_LUX_AZ_MIN = "lux_az_min"
+CONF_LUX_AZ_MAX = "lux_az_max"
 
 # Defaults — Geometry
 DEFAULT_FACE_AZIMUTH = 130
@@ -50,6 +55,18 @@ SUMMER_MODE_CUTOFF = "cutoff"
 SUMMER_MODES = [SUMMER_MODE_PERPENDICULAR, SUMMER_MODE_CUTOFF]
 DEFAULT_SUMMER_MODE = SUMMER_MODE_CUTOFF
 
+# Side fallback behavior — what to do when side A exceeds max_opening_angle.
+# "clamp" : keep blades closed at max_opening_angle (100%). Smooth curve, no
+#           sudden opening when the sun goes high; matches operator intuition
+#           of "stay shut when the sun is overhead".
+# "flip"  : rotate blades to the opposite face (side B). Geometrically
+#           equivalent perpendicular-to-rays orientation, but creates a
+#           discontinuous jump in the target percent (legacy behavior).
+SIDE_FALLBACK_CLAMP = "clamp"
+SIDE_FALLBACK_FLIP = "flip"
+SIDE_FALLBACKS = [SIDE_FALLBACK_CLAMP, SIDE_FALLBACK_FLIP]
+DEFAULT_SIDE_FALLBACK = SIDE_FALLBACK_CLAMP
+
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5
 DEFAULT_STEP_SIZE = 5
@@ -61,11 +78,15 @@ DEFAULT_MIN_ELEVATION = 20
 
 # Defaults — Cloud detection
 DEFAULT_PV_MAX_WATTS = 3000
-DEFAULT_PV_SUNNY_RATIO = 0.70
+DEFAULT_PV_SUNNY_RATIO = 0.50
 DEFAULT_PV_SMOOTH_ALPHA = 0.4
 DEFAULT_HYSTERESIS_DURATION = 900
-DEFAULT_PV_PANEL_AZIMUTH = 180
+DEFAULT_PV_PANEL_AZIMUTH = DEFAULT_FACE_AZIMUTH
 DEFAULT_PV_PANEL_TILT = 30
+DEFAULT_LUX_SUNNY_RATIO = 25000
+DEFAULT_PV_OBSERVABLE_COS = 0.4
+DEFAULT_LUX_AZ_MIN = 120
+DEFAULT_LUX_AZ_MAX = 260
 
 # Modes
 MODE_WINTER = "Hiver"

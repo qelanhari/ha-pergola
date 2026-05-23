@@ -16,6 +16,8 @@ from solar import (  # noqa: E402
     compute_pv_threshold,
     compute_summer_target,
     compute_winter_target,
+    is_sunny,
+    panel_cos_aoi,
     quantize,
     smooth_pv,
 )
@@ -111,23 +113,86 @@ class TestComputeSummerTarget:
         assert result == 100.0
 
     def test_flip_to_side_b_when_viable(self) -> None:
-        """Side A > max and side B > 0 → flip to side B."""
+        """Legacy flip mode: side A > max and side B > 0 → flip to side B."""
         result = compute_summer_target(
             profile_angle=120, calibration_offset=-10,
             safety_margin=10, max_opening_angle=135, step_size=5,
+            side_fallback="flip",
         )
         # side_a = 210 > 135, side_b = 120-90-10 = 20 > 0
         # percent = 20/135*100 = 14.8% → quantize to 15%
         assert result == 15.0
 
     def test_flip_higher_profile(self) -> None:
-        """Late afternoon, high profile angle → side B gives open position."""
+        """Legacy flip: late afternoon, high profile → side B gives open position."""
         result = compute_summer_target(
             profile_angle=150, calibration_offset=-10,
             safety_margin=10, max_opening_angle=135, step_size=5,
+            side_fallback="flip",
         )
         # side_b = 150-90-10 = 50 → 50/135*100 = 37% → 35%
         assert result == 35.0
+
+    def test_default_clamps_to_100_when_side_a_overflows(self) -> None:
+        """Default behavior: when side A > max, stay at 100% (no flip)."""
+        result = compute_summer_target(
+            profile_angle=120, calibration_offset=-10,
+            safety_margin=10, max_opening_angle=135, step_size=5,
+        )
+        # Default side_fallback="clamp" — stays at 100% instead of flipping.
+        assert result == 100.0
+
+    def test_clamp_does_not_flip_at_overhead_sun(self) -> None:
+        """Field case: profile 67.23° matches the operator-observed problem.
+
+        With the legacy flip the cutoff side B yields ~5% (blades nearly
+        flat), which the operator perceives as wide open. Clamping at 100%
+        keeps the blades shut and matches the operator's intuition of
+        "stay closed when the sun is overhead".
+        """
+        result = compute_summer_target(
+            profile_angle=67.23, calibration_offset=-10,
+            safety_margin=10, max_opening_angle=135, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        # cutoff side_a ≈ 125.26 + (-10 + 10) = 125.26 ≤ 135 → side A used
+        # → 92.78% → quantize 5 → 95%. Verified.
+        assert result == 95.0
+
+    def test_perpendicular_clamps_while_cutoff_ceiling_fits(self) -> None:
+        """Field case: at profile=67.23°, perpendicular side_a (157°) overflows
+        but the cutoff ceiling (125°) still fits in max=135°. At full closure
+        the gaps are geometrically closed → stay at 100% regardless of mode.
+        """
+        result = compute_summer_target(
+            profile_angle=67.23, calibration_offset=-10, safety_margin=10,
+            max_opening_angle=135, step_size=5,
+            mode="perpendicular", pitch_ratio=0.92,
+        )
+        assert result == 100.0
+
+    def test_flip_only_triggers_past_ceiling(self) -> None:
+        """Even with side_fallback='flip', the flip is suppressed while the
+        cutoff ceiling fits in max — otherwise the algorithm would open up
+        the pergola while it can still block 100% of direct rays.
+        """
+        # profile=67° → ceiling 125° ≤ 135° → no flip even if requested.
+        result = compute_summer_target(
+            profile_angle=67.23, calibration_offset=-10, safety_margin=10,
+            max_opening_angle=135, step_size=5,
+            mode="perpendicular", pitch_ratio=0.92, side_fallback="flip",
+        )
+        assert result == 100.0
+
+    def test_clamp_with_smaller_max_angle(self) -> None:
+        """When max is small enough that cutoff side A overflows, clamp wins."""
+        result = compute_summer_target(
+            profile_angle=67.23, calibration_offset=0,
+            safety_margin=10, max_opening_angle=100, step_size=5,
+            mode="cutoff", pitch_ratio=0.92,
+        )
+        # cutoff side_a = 125.26 + 10 = 135.26 > 100 → clamp → 100%
+        assert result == 100.0
 
     def test_midday_high_sun(self) -> None:
         """Profile angle 61° (sun high and facing) → should be 100%."""
@@ -173,11 +238,11 @@ class TestComputeSummerTargetCutoff:
         assert result == 0.0
 
     def test_cutoff_falls_through_to_side_b(self) -> None:
-        """High profile → side_a exceeds max → cutoff side_b used."""
+        """Legacy flip: high profile → side_a exceeds max → cutoff side_b used."""
         result = compute_summer_target(
             profile_angle=120, calibration_offset=-10, safety_margin=10,
             max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
+            mode="cutoff", pitch_ratio=0.92, side_fallback="flip",
         )
         # cutoff side_a ≈ 172.9° (exceeds 135)
         # cutoff side_b = 120 - 90 + arccos(0.92·sin120°) = 67.1°
@@ -185,20 +250,20 @@ class TestComputeSummerTargetCutoff:
         assert result == 40.0
 
     def test_cutoff_side_b_matches_field_30_percent(self) -> None:
-        """Field-tested: profile 105.6°, pitch 0.92, offset 0, margin 10 → 30%."""
+        """Legacy flip field-tested: profile 105.6° → 30% via side B."""
         result = compute_summer_target(
             profile_angle=105.6, calibration_offset=0, safety_margin=10,
             max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
+            mode="cutoff", pitch_ratio=0.92, side_fallback="flip",
         )
         assert result == 30.0
 
     def test_perpendicular_side_b_unchanged(self) -> None:
-        """Perpendicular mode keeps the simple side_b fallback."""
+        """Legacy flip perpendicular: simple side_b fallback."""
         result = compute_summer_target(
             profile_angle=105.6, calibration_offset=0, safety_margin=10,
             max_opening_angle=135, step_size=5,
-            mode="perpendicular",
+            mode="perpendicular", side_fallback="flip",
         )
         # side_a = 105.6 + 90 + 10 = 205.6 > 135 → side_b = 105.6 - 90 = 15.6
         # /135*100 = 11.55 → quantized step 5 → 10%
@@ -216,13 +281,15 @@ class TestComputeSummerTargetCutoff:
 
 
 class TestComputePvThreshold:
-    def test_returns_at_least_400(self) -> None:
+    def test_low_elevation_no_floor(self) -> None:
+        """Threshold scales with cos(AoI) — no 400 W floor anymore."""
         result = compute_pv_threshold(
             sun_elevation=5, sun_azimuth=130,
             panel_azimuth=180, panel_tilt=30,
             pv_max=3000, ratio=0.70,
         )
-        assert result >= 400
+        # cos_aoi at elev=5°, |Δaz|=50° on 30° panel ≈ 0.4 → ~840W
+        assert 700 < result < 900
 
     def test_face_on_sun_gives_near_peak_threshold(self) -> None:
         """Sun at 50°/180° on a south-facing 30° panel → cos_aoi ≈ 0.985."""
@@ -244,14 +311,52 @@ class TestComputePvThreshold:
         # 0.637 × 3000 × 0.70 ≈ 1338
         assert 1280 < result < 1400
 
-    def test_sun_behind_floor(self) -> None:
-        """Sun far behind panel → cos_aoi clamped to 0 → 400 W floor."""
+    def test_sun_behind_panel_zero(self) -> None:
+        """Sun far behind panel → cos_aoi clamped to 0 → threshold 0."""
         result = compute_pv_threshold(
             sun_elevation=10, sun_azimuth=0,
             panel_azimuth=180, panel_tilt=30,
             pv_max=3000, ratio=0.70,
         )
-        assert result == 400
+        assert result == 0.0
+
+
+class TestPanelCosAoi:
+    def test_normal_incidence(self) -> None:
+        # Sun at panel azimuth, elev = 90° - tilt → ray normal to panel
+        result = panel_cos_aoi(60, 180, 180, 30)
+        assert abs(result - 1.0) < 0.01
+
+    def test_behind_panel_clamped(self) -> None:
+        result = panel_cos_aoi(10, 0, 180, 30)
+        assert result == 0.0
+
+
+class TestIsSunny:
+    def test_pv_only_sees_sun_and_passes(self) -> None:
+        # Lux not observable; PV observable and above threshold
+        assert is_sunny(1000, 500, True, 0, 0, False, False) is True
+
+    def test_pv_only_sees_sun_and_fails(self) -> None:
+        assert is_sunny(100, 500, True, 0, 0, False, True) is False
+
+    def test_lux_only_sees_sun_and_passes(self) -> None:
+        assert is_sunny(0, 0, False, 30000, 20000, True, False) is True
+
+    def test_either_signal_passes_is_sunny(self) -> None:
+        # OR semantics: PV says no, lux says yes → sunny
+        assert is_sunny(100, 500, True, 30000, 20000, True, False) is True
+
+    def test_neither_observable_holds_previous_true(self) -> None:
+        # Both shaded → keep previous decision (sunny)
+        assert is_sunny(0, 0, False, 0, 0, False, True) is True
+
+    def test_neither_observable_holds_previous_false(self) -> None:
+        # Both shaded → keep previous decision (cloudy) — sunrise default
+        assert is_sunny(0, 0, False, 0, 0, False, False) is False
+
+    def test_both_observable_both_below(self) -> None:
+        assert is_sunny(100, 500, True, 1000, 20000, True, True) is False
 
 
 class TestSmoothPv:

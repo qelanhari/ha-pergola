@@ -38,17 +38,22 @@ from .const import (
     CONF_HUMIDITY_MAX,
     CONF_HYSTERESIS_DURATION,
     CONF_LIGHT_SENSOR_ENTITY,
+    CONF_LUX_AZ_MAX,
+    CONF_LUX_AZ_MIN,
+    CONF_LUX_SUNNY_RATIO,
     CONF_MAX_OPENING_ANGLE,
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
+    CONF_PV_OBSERVABLE_COS,
     CONF_PV_PANEL_AZIMUTH,
     CONF_PV_PANEL_TILT,
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_SIDE_FALLBACK,
     CONF_STEP_SIZE,
     CONF_SUMMER_MODE,
     CONF_SUMMER_SAFETY_MARGIN,
@@ -62,19 +67,25 @@ from .const import (
     DEFAULT_FACE_AZIMUTH,
     DEFAULT_HUMIDITY_MAX,
     DEFAULT_HYSTERESIS_DURATION,
+    DEFAULT_LUX_AZ_MAX,
+    DEFAULT_LUX_AZ_MIN,
+    DEFAULT_LUX_SUNNY_RATIO,
     DEFAULT_MAX_OPENING_ANGLE,
     DEFAULT_MIN_ELEVATION,
     DEFAULT_MIN_USEFUL_PERCENT,
     DEFAULT_PV_MAX_WATTS,
+    DEFAULT_PV_OBSERVABLE_COS,
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_SIDE_FALLBACK,
     DEFAULT_STEP_SIZE,
     DEFAULT_SUMMER_MODE,
     DEFAULT_SUMMER_SAFETY_MARGIN,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    SIDE_FALLBACKS,
     SUMMER_MODES,
 )
 
@@ -175,6 +186,16 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): NumberSelector(
                 NumberSelectorConfig(
                     min=0.5, max=1.2, step=0.01, mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
+                CONF_SIDE_FALLBACK,
+                default=d.get(CONF_SIDE_FALLBACK, DEFAULT_SIDE_FALLBACK),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=SIDE_FALLBACKS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_SIDE_FALLBACK,
                 )
             ),
         }
@@ -308,6 +329,43 @@ def _cloud_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 NumberSelectorConfig(
                     min=60, max=3600, step=60, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="s",
+                )
+            ),
+            vol.Required(
+                CONF_LUX_SUNNY_RATIO,
+                default=d.get(CONF_LUX_SUNNY_RATIO, DEFAULT_LUX_SUNNY_RATIO),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1000, max=100000, step=500,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="lx",
+                )
+            ),
+            vol.Required(
+                CONF_PV_OBSERVABLE_COS,
+                default=d.get(CONF_PV_OBSERVABLE_COS, DEFAULT_PV_OBSERVABLE_COS),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0.0, max=0.9, step=0.05,
+                    mode=NumberSelectorMode.SLIDER,
+                )
+            ),
+            vol.Required(
+                CONF_LUX_AZ_MIN,
+                default=d.get(CONF_LUX_AZ_MIN, DEFAULT_LUX_AZ_MIN),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=5, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_LUX_AZ_MAX,
+                default=d.get(CONF_LUX_AZ_MAX, DEFAULT_LUX_AZ_MAX),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=5, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
                 )
             ),
         }

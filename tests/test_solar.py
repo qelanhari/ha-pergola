@@ -96,188 +96,105 @@ class TestComputeWinterTarget:
 
 
 class TestComputeSummerTarget:
-    def test_normal_case(self) -> None:
-        result = compute_summer_target(
-            profile_angle=40, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-        )
-        assert 0 <= result <= 100
+    """Threshold-based summer algorithm.
 
-    def test_clamp_to_100_when_side_b_negative(self) -> None:
-        """Side A > max and side B ≤ 0 → stay at 100%."""
-        result = compute_summer_target(
-            profile_angle=80, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-        )
-        # side_a = 170 > 135, side_b = 80-90-10 = -20 ≤ 0 → 100%
-        assert result == 100.0
+    profile < flip_profile_threshold → 100% (side A clamp).
+    profile >= flip_profile_threshold → side B cutoff geometry.
+    """
 
-    def test_flip_to_side_b_when_viable(self) -> None:
-        """Legacy flip mode: side A > max and side B > 0 → flip to side B."""
+    def test_below_threshold_clamps_to_100(self) -> None:
+        """profile=40 < threshold=80 → 100%."""
         result = compute_summer_target(
-            profile_angle=120, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-            side_fallback="flip",
-        )
-        # side_a = 210 > 135, side_b = 120-90-10 = 20 > 0
-        # percent = 20/135*100 = 14.8% → quantize to 15%
-        assert result == 15.0
-
-    def test_flip_higher_profile(self) -> None:
-        """Legacy flip: late afternoon, high profile → side B gives open position."""
-        result = compute_summer_target(
-            profile_angle=150, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-            side_fallback="flip",
-        )
-        # side_b = 150-90-10 = 50 → 50/135*100 = 37% → 35%
-        assert result == 35.0
-
-    def test_default_clamps_to_100_when_side_a_overflows(self) -> None:
-        """Default behavior: when side A > max, stay at 100% (no flip)."""
-        result = compute_summer_target(
-            profile_angle=120, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-        )
-        # Default side_fallback="clamp" — stays at 100% instead of flipping.
-        assert result == 100.0
-
-    def test_clamp_does_not_flip_at_overhead_sun(self) -> None:
-        """Field case: profile 67.23° matches the operator-observed problem.
-
-        With the legacy flip the cutoff side B yields ~5% (blades nearly
-        flat), which the operator perceives as wide open. Clamping at 100%
-        keeps the blades shut and matches the operator's intuition of
-        "stay closed when the sun is overhead".
-        """
-        result = compute_summer_target(
-            profile_angle=67.23, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
-        )
-        # cutoff side_a ≈ 125.26 + (-10 + 10) = 125.26 ≤ 135 → side A used
-        # → 92.78% → quantize 5 → 95%. Verified.
-        assert result == 95.0
-
-    def test_perpendicular_clamps_while_cutoff_ceiling_fits(self) -> None:
-        """Field case: at profile=67.23°, perpendicular side_a (157°) overflows
-        but the cutoff ceiling (125°) still fits in max=135°. At full closure
-        the gaps are geometrically closed → stay at 100% regardless of mode.
-        """
-        result = compute_summer_target(
-            profile_angle=67.23, calibration_offset=-10, safety_margin=10,
+            profile_angle=40, calibration_offset=0,
             max_opening_angle=135, step_size=5,
-            mode="perpendicular", pitch_ratio=0.92,
+            pitch_ratio=0.92, flip_profile_threshold=80,
         )
         assert result == 100.0
 
-    def test_flip_only_triggers_past_ceiling(self) -> None:
-        """Even with side_fallback='flip', the flip is suppressed while the
-        cutoff ceiling fits in max — otherwise the algorithm would open up
-        the pergola while it can still block 100% of direct rays.
-        """
-        # profile=67° → ceiling 125° ≤ 135° → no flip even if requested.
-        result = compute_summer_target(
-            profile_angle=67.23, calibration_offset=-10, safety_margin=10,
-            max_opening_angle=135, step_size=5,
-            mode="perpendicular", pitch_ratio=0.92, side_fallback="flip",
-        )
-        assert result == 100.0
-
-    def test_clamp_with_smaller_max_angle(self) -> None:
-        """When max is small enough that cutoff side A overflows, clamp wins."""
+    def test_morning_field_case_at_67_degrees(self) -> None:
+        """Field observation 13h on 23 May 2026: profile=67° → 100%."""
         result = compute_summer_target(
             profile_angle=67.23, calibration_offset=0,
-            safety_margin=10, max_opening_angle=100, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
         )
-        # cutoff side_a = 125.26 + 10 = 135.26 > 100 → clamp → 100%
         assert result == 100.0
 
-    def test_midday_high_sun(self) -> None:
-        """Profile angle 61° (sun high and facing) → should be 100%."""
+    def test_afternoon_just_after_flip(self) -> None:
+        """Field observation 14h45 on 23 May 2026: profile≈82°, offset=0,
+        P/W=0.92 → side B cutoff = -8 + arccos(0.911) = 16.27° → 12% →
+        quantize step 5 → 10."""
         result = compute_summer_target(
-            profile_angle=61, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-        )
-        # s_raw = 61 + 90 - 10 + 10 = 151 > 135 -> 100%
-        assert result == 100.0
-
-    def test_low_profile_angle(self) -> None:
-        result = compute_summer_target(
-            profile_angle=20, calibration_offset=-10,
-            safety_margin=10, max_opening_angle=135, step_size=5,
-        )
-        # s_raw = 20 + 90 - 10 + 10 = 110 <= 135
-        expected = quantize(angle_to_percent(110, 135), 5)
-        assert abs(result - expected) < 5
-
-
-class TestComputeSummerTargetCutoff:
-    def test_cutoff_less_closed_than_perpendicular(self) -> None:
-        """At mid elevation, cutoff mode gives a smaller position than perpendicular."""
-        perp = compute_summer_target(
-            profile_angle=30, calibration_offset=0, safety_margin=0,
+            profile_angle=82, calibration_offset=0,
             max_opening_angle=135, step_size=5,
-            mode="perpendicular",
+            pitch_ratio=0.92, flip_profile_threshold=80,
         )
-        cutoff = compute_summer_target(
-            profile_angle=30, calibration_offset=0, safety_margin=0,
-            max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
-        )
-        assert cutoff < perp
-
-    def test_cutoff_zero_profile(self) -> None:
-        """At profile 0, acos(0)=90° → raw_angle = 0 → 0%."""
-        result = compute_summer_target(
-            profile_angle=0, calibration_offset=0, safety_margin=0,
-            max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92,
-        )
-        assert result == 0.0
-
-    def test_cutoff_falls_through_to_side_b(self) -> None:
-        """Legacy flip: high profile → side_a exceeds max → cutoff side_b used."""
-        result = compute_summer_target(
-            profile_angle=120, calibration_offset=-10, safety_margin=10,
-            max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92, side_fallback="flip",
-        )
-        # cutoff side_a ≈ 172.9° (exceeds 135)
-        # cutoff side_b = 120 - 90 + arccos(0.92·sin120°) = 67.1°
-        # + cal(-10) = 57.1° → 42.3% → quantized step 5 → 40%
-        assert result == 40.0
-
-    def test_cutoff_side_b_matches_field_30_percent(self) -> None:
-        """Legacy flip field-tested: profile 105.6° → 30% via side B."""
-        result = compute_summer_target(
-            profile_angle=105.6, calibration_offset=0, safety_margin=10,
-            max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=0.92, side_fallback="flip",
-        )
-        assert result == 30.0
-
-    def test_perpendicular_side_b_unchanged(self) -> None:
-        """Legacy flip perpendicular: simple side_b fallback."""
-        result = compute_summer_target(
-            profile_angle=105.6, calibration_offset=0, safety_margin=10,
-            max_opening_angle=135, step_size=5,
-            mode="perpendicular", side_fallback="flip",
-        )
-        # side_a = 105.6 + 90 + 10 = 205.6 > 135 → side_b = 105.6 - 90 = 15.6
-        # /135*100 = 11.55 → quantized step 5 → 10%
         assert result == 10.0
 
-    def test_cutoff_pitch_ratio_one_matches_side_a_bound(self) -> None:
-        """With P/W=1 at profile=90°, sin_arg=1 → infeasible → side B path."""
+    def test_afternoon_field_case_with_offset_yields_15(self) -> None:
+        """Same sun position with offset=+4 shifts side B into the 15% band."""
         result = compute_summer_target(
-            profile_angle=90, calibration_offset=-10, safety_margin=0,
+            profile_angle=82, calibration_offset=4,
             max_opening_angle=135, step_size=5,
-            mode="cutoff", pitch_ratio=1.0,
+            pitch_ratio=0.92, flip_profile_threshold=80,
         )
-        # side_a infeasible → side_b = 90-90-10 = -10 ≤ 0 → 100%
+        # 16.27 + 4 = 20.27° → 15.02% → quantize step 5 → 15
+        assert result == 15.0
+
+    def test_custom_threshold_delays_flip(self) -> None:
+        """Raising the threshold to 85° keeps profile=82 clamped at 100%."""
+        result = compute_summer_target(
+            profile_angle=82, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+        )
         assert result == 100.0
+
+    def test_threshold_boundary_is_inclusive(self) -> None:
+        """profile = threshold → flip branch applies (>=, not >)."""
+        result = compute_summer_target(
+            profile_angle=80, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+        )
+        # 80 − 90 + arccos(0.92·sin80°) = −10 + 25.06 = 15.06°
+        # → 11.16% → quantize step 5 → 10
+        assert result == 10.0
+
+    def test_side_b_negative_clamps_to_100(self) -> None:
+        """Degenerate case: negative side B angle after offset → 100%."""
+        result = compute_summer_target(
+            profile_angle=82, calibration_offset=-30,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+        )
+        # side_b = 16.27 − 30 = −13.73 ≤ 0 → 100
+        assert result == 100.0
+
+    def test_high_profile_late_afternoon(self) -> None:
+        """Sun further west (profile=120°) → side B angle much higher."""
+        result = compute_summer_target(
+            profile_angle=120, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+        )
+        # 120 − 90 + arccos(0.92·sin120°) = 30 + 37.16 = 67.16°
+        # → 49.7% → quantize → 50
+        assert result == 50.0
+
+    def test_lower_pitch_ratio_yields_higher_post_flip(self) -> None:
+        """A user with thicker blades (lower P/W) calibrates pitch_ratio down;
+        the post-flip target is then higher (blades closer to vertical)."""
+        result = compute_summer_target(
+            profile_angle=82, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.79, flip_profile_threshold=80,
+        )
+        # 82 − 90 + arccos(0.79·sin82°) = −8 + arccos(0.782) = −8 + 38.55
+        # = 30.55° → 22.6% → quantize → 25
+        # (also note: with P/W=0.79 + offset=−10, the field 15% target lands
+        #  almost exactly — see plan doc for the calibration arithmetic.)
+        assert result == 25.0
 
 
 class TestComputePvThreshold:

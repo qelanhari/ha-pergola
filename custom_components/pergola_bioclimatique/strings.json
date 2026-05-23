@@ -33,19 +33,15 @@
           "face_azimuth": "Pergola face azimuth",
           "max_opening_angle": "Maximum opening angle",
           "calibration_offset": "Calibration offset",
-          "summer_safety_margin": "Summer safety margin",
-          "summer_mode": "Summer algorithm",
           "blade_pitch_ratio": "Blade pitch / width ratio",
-          "side_fallback": "Behavior when sun is too high for side A"
+          "flip_profile_threshold": "Bascule profile angle"
         },
         "data_description": {
           "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
           "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
           "calibration_offset": "Permanent correction offset for blade angle.",
-          "summer_safety_margin": "Extra margin added in summer mode for better shading.",
-          "summer_mode": "perpendicular: blades perpendicular to sun (max shade). cutoff: minimum closure that still blocks direct rays (more airflow/light).",
-          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Used only in cutoff mode. Default 0.92 for waterproof louvers.",
-          "side_fallback": "clamp: stay fully closed (100%) when the sun is too high to reach perpendicular on side A. flip: rotate blades to the opposite face (legacy, can open suddenly around noon)."
+          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Default 0.92 for waterproof louvers; tune so the post-bascule target matches what you observe blocks best.",
+          "flip_profile_threshold": "Profile angle (°) at which the blades flip from side A (clamped at 100% / full tilt) to side B (cutoff geometry, low tilt). Calibrate by observing sensor.pergola_profile_angle the moment a first beam of sun starts to leak past the fully-tilted blades. Default 80°; lower if the bascule happens too late, raise if too early."
         }
       },
       "operation": {
@@ -109,19 +105,15 @@
           "face_azimuth": "Pergola face azimuth",
           "max_opening_angle": "Maximum opening angle",
           "calibration_offset": "Calibration offset",
-          "summer_safety_margin": "Summer safety margin",
-          "summer_mode": "Summer algorithm",
           "blade_pitch_ratio": "Blade pitch / width ratio",
-          "side_fallback": "Behavior when sun is too high for side A"
+          "flip_profile_threshold": "Bascule profile angle"
         },
         "data_description": {
           "face_azimuth": "Compass direction the pergola faces (0°=N, 90°=E, 180°=S, 270°=W).",
           "max_opening_angle": "Maximum tilt angle of the blades in degrees.",
           "calibration_offset": "Permanent correction offset for blade angle.",
-          "summer_safety_margin": "Extra margin added in summer mode for better shading.",
-          "summer_mode": "perpendicular: blades perpendicular to sun (max shade). cutoff: minimum closure that still blocks direct rays (more airflow/light).",
-          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Used only in cutoff mode. Default 0.92 for waterproof louvers.",
-          "side_fallback": "clamp: stay fully closed (100%) when the sun is too high to reach perpendicular on side A. flip: rotate blades to the opposite face (legacy, can open suddenly around noon)."
+          "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Default 0.92 for waterproof louvers; tune so the post-bascule target matches what you observe blocks best.",
+          "flip_profile_threshold": "Profile angle (°) at which the blades flip from side A (clamped at 100% / full tilt) to side B (cutoff geometry, low tilt). Calibrate by observing sensor.pergola_profile_angle the moment a first beam of sun starts to leak past the fully-tilted blades. Default 80°; lower if the bascule happens too late, raise if too early."
         }
       },
       "operation": {
@@ -173,20 +165,6 @@
           "lux_az_min": "Sun azimuth (°) at which the lux sensor starts seeing direct sun.",
           "lux_az_max": "Sun azimuth (°) past which the lux sensor no longer sees direct sun."
         }
-      }
-    }
-  },
-  "selector": {
-    "summer_mode": {
-      "options": {
-        "perpendicular": "Perpendicular to sun (full shade)",
-        "cutoff": "Cutoff (minimum closure, more airflow)"
-      }
-    },
-    "side_fallback": {
-      "options": {
-        "clamp": "Clamp at 100% (stay closed)",
-        "flip": "Flip to opposite face (legacy)"
       }
     }
   },

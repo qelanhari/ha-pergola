@@ -33,19 +33,15 @@
           "face_azimuth": "Azimut de la pergola",
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
-          "summer_safety_margin": "Marge de sécurité été",
-          "summer_mode": "Algorithme été",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "side_fallback": "Comportement quand le soleil est trop haut pour la face A"
+          "flip_profile_threshold": "Angle de profil de bascule"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
-          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
-          "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche.",
-          "side_fallback": "clamp : reste fermée (100%) quand le soleil est trop haut pour atteindre la perpendiculaire sur la face A. flip : bascule sur la face opposée (ancien comportement, ouverture brutale autour de midi)."
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
+          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A (clampée à 100 %, inclinaison max) vers la face B (géométrie cutoff, inclinaison basse). À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt."
         }
       },
       "operation": {
@@ -109,19 +105,15 @@
           "face_azimuth": "Azimut de la pergola",
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
-          "summer_safety_margin": "Marge de sécurité été",
-          "summer_mode": "Algorithme été",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "side_fallback": "Comportement quand le soleil est trop haut pour la face A"
+          "flip_profile_threshold": "Angle de profil de bascule"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
-          "summer_safety_margin": "Marge supplémentaire en mode été pour un meilleur ombrage.",
-          "summer_mode": "perpendiculaire : lames à 90° du soleil (ombre maximale). cutoff : fermeture minimale qui bloque encore les rayons directs (plus d'air/lumière).",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Utilisé uniquement en mode cutoff. Par défaut 0,92 pour une pergola étanche.",
-          "side_fallback": "clamp : reste fermée (100%) quand le soleil est trop haut pour atteindre la perpendiculaire sur la face A. flip : bascule sur la face opposée (ancien comportement, ouverture brutale autour de midi)."
+          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
+          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A (clampée à 100 %, inclinaison max) vers la face B (géométrie cutoff, inclinaison basse). À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt."
         }
       },
       "operation": {
@@ -173,20 +165,6 @@
           "lux_az_min": "Azimut solaire (°) à partir duquel le capteur lux voit le soleil direct.",
           "lux_az_max": "Azimut solaire (°) au-delà duquel le capteur lux ne voit plus le soleil direct."
         }
-      }
-    }
-  },
-  "selector": {
-    "summer_mode": {
-      "options": {
-        "perpendicular": "Perpendiculaire au soleil (ombre totale)",
-        "cutoff": "Cutoff (fermeture minimale, plus d'aération)"
-      }
-    },
-    "side_fallback": {
-      "options": {
-        "clamp": "Reste fermée à 100%",
-        "flip": "Bascule sur la face opposée (ancien)"
       }
     }
   },

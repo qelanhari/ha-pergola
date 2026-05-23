@@ -46,10 +46,8 @@ from .const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
-    CONF_SIDE_FALLBACK,
+    CONF_FLIP_PROFILE_THRESHOLD,
     CONF_STEP_SIZE,
-    CONF_SUMMER_MODE,
-    CONF_SUMMER_SAFETY_MARGIN,
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
@@ -61,8 +59,7 @@ from .const import (
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SUNNY_RATIO,
-    DEFAULT_SIDE_FALLBACK,
-    DEFAULT_SUMMER_MODE,
+    DEFAULT_FLIP_PROFILE_THRESHOLD,
     DOMAIN,
     LOCK_ORIGINS,
     LOCK_RAIN,
@@ -447,7 +444,6 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         max_angle = self._cfg(CONF_MAX_OPENING_ANGLE, 135)
         offset = self._cfg(CONF_CALIBRATION_OFFSET, -10)
         step = self._cfg(CONF_STEP_SIZE, 5)
-        safety = self._cfg(CONF_SUMMER_SAFETY_MARGIN, 10)
         cloudy_target = self._cfg(CONF_CLOUDY_TARGET, 60)
         min_useful = self._cfg(CONF_MIN_USEFUL_PERCENT, 9)
 
@@ -468,16 +464,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._profile_angle, offset, hold_pos, max_angle, step
             )
         else:
-            summer_mode = self._cfg(CONF_SUMMER_MODE, DEFAULT_SUMMER_MODE)
             pitch_ratio = self._cfg(
                 CONF_BLADE_PITCH_RATIO, DEFAULT_BLADE_PITCH_RATIO
             )
-            side_fallback = self._cfg(
-                CONF_SIDE_FALLBACK, DEFAULT_SIDE_FALLBACK
+            flip_threshold = self._cfg(
+                CONF_FLIP_PROFILE_THRESHOLD, DEFAULT_FLIP_PROFILE_THRESHOLD
             )
             solar_percent = solar.compute_summer_target(
-                self._profile_angle, offset, safety, max_angle, step,
-                summer_mode, pitch_ratio, side_fallback,
+                self._profile_angle, offset, max_angle, step,
+                pitch_ratio, flip_threshold,
             )
 
         self._solar_target = solar_percent
@@ -490,15 +485,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._is_sunny, int(cloudy_target), int(min_useful),
             )
         else:
-            ceiling = solar.compute_summer_ceiling(
-                self._profile_angle, offset, safety, pitch_ratio,
-            )
+            past_threshold = self._profile_angle >= flip_threshold
             _LOGGER.debug(
-                "Solar: profile_angle=%.1f°, solar_target=%.0f%%, "
-                "ceiling=%.1f° (max=%d°), sunny=%s, cloudy_target=%d%%, "
+                "Solar: profile_angle=%.1f° (flip_threshold=%d° → %s), "
+                "solar_target=%.0f%%, sunny=%s, cloudy_target=%d%%, "
                 "min_useful=%d%%",
-                self._profile_angle, solar_percent, ceiling, int(max_angle),
-                self._is_sunny, int(cloudy_target), int(min_useful),
+                self._profile_angle, int(flip_threshold),
+                "side B" if past_threshold else "side A clamp",
+                solar_percent, self._is_sunny, int(cloudy_target),
+                int(min_useful),
             )
 
         # Final target decision.

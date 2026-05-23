@@ -18,9 +18,6 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
 )
 
 # Well-known Sun integration entity IDs
@@ -53,10 +50,8 @@ from .const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
-    CONF_SIDE_FALLBACK,
+    CONF_FLIP_PROFILE_THRESHOLD,
     CONF_STEP_SIZE,
-    CONF_SUMMER_MODE,
-    CONF_SUMMER_SAFETY_MARGIN,
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
@@ -79,14 +74,10 @@ from .const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
-    DEFAULT_SIDE_FALLBACK,
+    DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_STEP_SIZE,
-    DEFAULT_SUMMER_MODE,
-    DEFAULT_SUMMER_SAFETY_MARGIN,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
-    SIDE_FALLBACKS,
-    SUMMER_MODES,
 )
 
 
@@ -165,22 +156,6 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 )
             ),
             vol.Required(
-                CONF_SUMMER_SAFETY_MARGIN,
-                default=d.get(CONF_SUMMER_SAFETY_MARGIN, DEFAULT_SUMMER_SAFETY_MARGIN),
-            ): NumberSelector(
-                NumberSelectorConfig(min=0, max=30, step=1, mode=NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_SUMMER_MODE,
-                default=d.get(CONF_SUMMER_MODE, DEFAULT_SUMMER_MODE),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=SUMMER_MODES,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    translation_key=CONF_SUMMER_MODE,
-                )
-            ),
-            vol.Required(
                 CONF_BLADE_PITCH_RATIO,
                 default=d.get(CONF_BLADE_PITCH_RATIO, DEFAULT_BLADE_PITCH_RATIO),
             ): NumberSelector(
@@ -189,13 +164,15 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 )
             ),
             vol.Required(
-                CONF_SIDE_FALLBACK,
-                default=d.get(CONF_SIDE_FALLBACK, DEFAULT_SIDE_FALLBACK),
-            ): SelectSelector(
-                SelectSelectorConfig(
-                    options=SIDE_FALLBACKS,
-                    mode=SelectSelectorMode.DROPDOWN,
-                    translation_key=CONF_SIDE_FALLBACK,
+                CONF_FLIP_PROFILE_THRESHOLD,
+                default=d.get(
+                    CONF_FLIP_PROFILE_THRESHOLD,
+                    DEFAULT_FLIP_PROFILE_THRESHOLD,
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=60, max=90, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
                 )
             ),
         }

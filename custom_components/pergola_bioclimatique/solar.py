@@ -38,99 +38,57 @@ def compute_winter_target(
 
 
 def compute_summer_target(
-    profile_angle: float, calibration_offset: float,
-    safety_margin: float, max_opening_angle: float, step_size: float,
-    mode: str = "perpendicular", pitch_ratio: float = 0.92,
-    side_fallback: str = "clamp",
+    profile_angle: float,
+    calibration_offset: float,
+    max_opening_angle: float,
+    step_size: float,
+    pitch_ratio: float,
+    flip_profile_threshold: float,
 ) -> float:
     """Compute summer mode target.
 
-    Geometric branching, in order:
+    Output: HA cover tilt position percent. 0% = blades flat (rain
+    position, cover "closed"). 100% = blades at max_opening_angle
+    (cover "open" in HA terms, but the slat overlap on side A still
+    blocks all direct rays up to the empirical bascule threshold).
 
-    1. Ideal blade angle for the configured mode fits within the
-       mechanical range → use it (perpendicular ≈ full blocking;
-       cutoff ≈ minimum closure that still blocks direct rays).
+    Two phases:
 
-    2. Ideal overflows, but the **cutoff ceiling** still fits — i.e. the
-       minimum blade tilt that fully closes the inter-blade gaps for
-       this sun position is reachable. At max_opening_angle the pergola
-       is *geometrically guaranteed* to block all direct rays → clamp at
-       100% is the right answer regardless of mode.
+    - phase A (profile_angle < flip_profile_threshold): blades stay
+      clamped at 100 %. The slat overlap on side A covers the gaps.
 
-    3. Even the cutoff ceiling overflows. At full closure direct rays
-       still leak past the gaps, so the choice between staying clamped
-       and flipping to the opposite blade face is no longer trivial:
-       defer to side_fallback ("clamp" stays at 100%, "flip" rotates
-       the blades to side B per the configured mode).
+    - phase B (profile_angle >= flip_profile_threshold): blades flip
+      to the opposite face. The angle is given by the cutoff geometry
+      on side B:
+
+          blade = profile_angle − 90° + arccos(P/W · sin profile_angle)
+
+      This is the minimum tilt that closes the inter-blade gaps from
+      the opposite face for the current sun position.
+
+    Calibration: the user picks `flip_profile_threshold` by watching
+    `sensor.pergola_profile_angle` the moment the first ray leaks past
+    the fully-tilted blades, and tunes `pitch_ratio` so the post-flip
+    value matches the visually-optimal blade position.
     """
-    side_a = _summer_side_a(profile_angle, mode, pitch_ratio) \
-        + calibration_offset + safety_margin
-
-    if side_a <= max_opening_angle:
-        percent = angle_to_percent(side_a, max_opening_angle)
-        return quantize(percent, step_size)
-
-    # Cutoff ceiling: the minimum tilt that closes all gaps for this
-    # profile angle. As long as this still fits within max, blades fully
-    # closed at max_opening_angle physically block 100% of direct rays.
-    ceiling = _summer_side_a(profile_angle, "cutoff", pitch_ratio) \
-        + calibration_offset + safety_margin
-
-    if ceiling <= max_opening_angle:
+    if profile_angle < flip_profile_threshold:
         return 100.0
-
-    # Ceiling overflows too — full closure no longer fully blocks.
-    if side_fallback != "flip":
-        return 100.0
-
-    # Legacy flip: rotate to side B using the same mode as side A.
-    side_b = _summer_side_b(profile_angle, mode, pitch_ratio) + calibration_offset
-    if side_b <= 0:
-        return 100.0
-
-    percent = angle_to_percent(side_b, max_opening_angle)
-    return quantize(percent, step_size)
-
-
-def compute_summer_ceiling(
-    profile_angle: float, calibration_offset: float,
-    safety_margin: float, pitch_ratio: float = 0.92,
-) -> float:
-    """Cutoff ceiling angle (degrees). Below this tilt direct rays leak
-    between blades; at or above this tilt they are fully intercepted.
-    Useful for diagnostics and to compare with max_opening_angle.
-    """
-    return _summer_side_a(profile_angle, "cutoff", pitch_ratio) \
-        + calibration_offset + safety_margin
-
-
-def _summer_side_a(
-    profile_angle: float, mode: str, pitch_ratio: float,
-) -> float:
-    """Blade raw angle for side A before offsets/margin."""
-    if mode != "cutoff":
-        return profile_angle + 90
 
     sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
     if sin_arg >= 1.0:
-        # No cutoff solution on side A → force fallback to side B
-        return float("inf")
-    delta = math.degrees(math.acos(sin_arg))
-    return profile_angle + 90 - delta
+        return 100.0  # degenerate (sun behind face)
 
+    blade_angle = (
+        profile_angle - 90.0
+        + math.degrees(math.acos(sin_arg))
+        + calibration_offset
+    )
+    if blade_angle <= 0:
+        return 100.0
 
-def _summer_side_b(
-    profile_angle: float, mode: str, pitch_ratio: float,
-) -> float:
-    """Blade raw angle for side B (fallback) before offset."""
-    if mode != "cutoff":
-        return profile_angle - 90
-
-    sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
-    if sin_arg >= 1.0:
-        return profile_angle - 90
-    delta = math.degrees(math.acos(sin_arg))
-    return profile_angle - 90 + delta
+    return quantize(
+        angle_to_percent(blade_angle, max_opening_angle), step_size
+    )
 
 
 def compute_pv_threshold(

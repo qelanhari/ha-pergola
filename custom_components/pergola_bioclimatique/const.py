@@ -16,10 +16,8 @@ CONF_PRIORITY_LOCK_TIMER_ENTITY = "priority_lock_timer_entity"
 CONF_FACE_AZIMUTH = "face_azimuth"
 CONF_MAX_OPENING_ANGLE = "max_opening_angle"
 CONF_CALIBRATION_OFFSET = "calibration_offset"
-CONF_SUMMER_SAFETY_MARGIN = "summer_safety_margin"
-CONF_SUMMER_MODE = "summer_mode"
 CONF_BLADE_PITCH_RATIO = "blade_pitch_ratio"
-CONF_SIDE_FALLBACK = "side_fallback"
+CONF_FLIP_PROFILE_THRESHOLD = "flip_profile_threshold"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -46,26 +44,15 @@ CONF_LUX_AZ_MAX = "lux_az_max"
 DEFAULT_FACE_AZIMUTH = 130
 DEFAULT_MAX_OPENING_ANGLE = 135
 DEFAULT_CALIBRATION_OFFSET = -10
-DEFAULT_SUMMER_SAFETY_MARGIN = 10
 DEFAULT_BLADE_PITCH_RATIO = 0.92
 
-# Summer algorithms
-SUMMER_MODE_PERPENDICULAR = "perpendicular"
-SUMMER_MODE_CUTOFF = "cutoff"
-SUMMER_MODES = [SUMMER_MODE_PERPENDICULAR, SUMMER_MODE_CUTOFF]
-DEFAULT_SUMMER_MODE = SUMMER_MODE_CUTOFF
-
-# Side fallback behavior — what to do when side A exceeds max_opening_angle.
-# "clamp" : keep blades closed at max_opening_angle (100%). Smooth curve, no
-#           sudden opening when the sun goes high; matches operator intuition
-#           of "stay shut when the sun is overhead".
-# "flip"  : rotate blades to the opposite face (side B). Geometrically
-#           equivalent perpendicular-to-rays orientation, but creates a
-#           discontinuous jump in the target percent (legacy behavior).
-SIDE_FALLBACK_CLAMP = "clamp"
-SIDE_FALLBACK_FLIP = "flip"
-SIDE_FALLBACKS = [SIDE_FALLBACK_CLAMP, SIDE_FALLBACK_FLIP]
-DEFAULT_SIDE_FALLBACK = SIDE_FALLBACK_CLAMP
+# Empirical bascule threshold in degrees of profile_angle.
+# Below this profile, blades stay clamped at 100% (side A overlap blocks
+# all direct rays). At or above, blades flip to side B (cutoff geometry).
+# Calibrated by observation: watch sensor.pergola_profile_angle the day a
+# beam of sun starts to leak past the fully-tilted blades; that value is
+# your real threshold.
+DEFAULT_FLIP_PROFILE_THRESHOLD = 80
 
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5

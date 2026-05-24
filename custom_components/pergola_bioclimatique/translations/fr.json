@@ -34,14 +34,18 @@
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "flip_profile_threshold": "Angle de profil de bascule"
+          "flip_profile_threshold": "Angle de profil de bascule",
+          "sun_az_min": "Fenêtre d'exposition — azimut de début",
+          "sun_az_max": "Fenêtre d'exposition — azimut de fin"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
-          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A (clampée à 100 %, inclinaison max) vers la face B (géométrie cutoff, inclinaison basse). À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt."
+          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
+          "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
+          "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
         }
       },
       "operation": {
@@ -106,14 +110,18 @@
           "max_opening_angle": "Angle d'ouverture maximum",
           "calibration_offset": "Offset de calibration",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "flip_profile_threshold": "Angle de profil de bascule"
+          "flip_profile_threshold": "Angle de profil de bascule",
+          "sun_az_min": "Fenêtre d'exposition — azimut de début",
+          "sun_az_max": "Fenêtre d'exposition — azimut de fin"
         },
         "data_description": {
           "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
           "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
-          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A (clampée à 100 %, inclinaison max) vers la face B (géométrie cutoff, inclinaison basse). À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt."
+          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
+          "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
+          "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
         }
       },
       "operation": {

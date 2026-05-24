@@ -102,23 +102,49 @@ class TestComputeSummerTarget:
     profile >= flip_profile_threshold → side B cutoff geometry.
     """
 
-    def test_below_threshold_clamps_to_100(self) -> None:
-        """profile=40 < threshold=80 → 100%."""
+    def test_phase_a_tracks_sun_progressively(self) -> None:
+        """Phase A is no longer a flat clamp at 100 % — it follows the
+        cutoff side A geometry. profile=40 → blade ≈ 76°, ~55 %."""
         result = compute_summer_target(
             profile_angle=40, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=80,
         )
-        assert result == 100.0
+        # 40 + 90 − arccos(0.92·sin40°) = 130 − arccos(0.591) = 76.26°
+        # 76.26/135 = 56.5 % → quantize step 5 → 55
+        assert result == 55.0
 
-    def test_morning_field_case_at_67_degrees(self) -> None:
-        """Field observation 13h on 23 May 2026: profile=67° → 100%."""
+    def test_phase_a_field_case_at_67_degrees(self) -> None:
+        """Field observation 13h on 23 May 2026: profile=67° → ~93 % → 95%
+        (matches the operator's "90 % was right" intuition closely)."""
         result = compute_summer_target(
             profile_angle=67.23, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=80,
         )
+        # 67.23 + 90 − arccos(0.92·sin67.23°) = 157.23 − 31.96 = 125.27°
+        # 125.27/135 = 92.79 % → quantize → 95
+        assert result == 95.0
+
+    def test_phase_a_clamps_at_100_when_blade_overflows(self) -> None:
+        """profile=82° with threshold=85° stays in phase A; blade overflows
+        max_opening_angle → clamp 100 %."""
+        result = compute_summer_target(
+            profile_angle=82, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+        )
+        # 82 + 90 − arccos(0.92·sin82°) = 172 − 24.27 = 147.73 > 135 → 100
         assert result == 100.0
+
+    def test_phase_a_zero_profile_returns_rain_position(self) -> None:
+        """profile=0: blade = 0+90−arccos(0) = 0° → 0 % (rain position)."""
+        result = compute_summer_target(
+            profile_angle=0, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+        )
+        assert result == 0.0
 
     def test_afternoon_just_after_flip(self) -> None:
         """Field observation 14h45 on 23 May 2026: profile≈82°, offset=0,
@@ -140,15 +166,6 @@ class TestComputeSummerTarget:
         )
         # 16.27 + 4 = 20.27° → 15.02% → quantize step 5 → 15
         assert result == 15.0
-
-    def test_custom_threshold_delays_flip(self) -> None:
-        """Raising the threshold to 85° keeps profile=82 clamped at 100%."""
-        result = compute_summer_target(
-            profile_angle=82, calibration_offset=0,
-            max_opening_angle=135, step_size=5,
-            pitch_ratio=0.92, flip_profile_threshold=85,
-        )
-        assert result == 100.0
 
     def test_threshold_boundary_is_inclusive(self) -> None:
         """profile = threshold → flip branch applies (>=, not >)."""

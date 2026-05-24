@@ -52,42 +52,45 @@ def compute_summer_target(
     (cover "open" in HA terms, but the slat overlap on side A still
     blocks all direct rays up to the empirical bascule threshold).
 
-    Two phases:
+    Two phases, both using cutoff geometry:
 
-    - phase A (profile_angle < flip_profile_threshold): blades stay
-      clamped at 100 %. The slat overlap on side A covers the gaps.
+    - phase A (profile_angle < flip_profile_threshold): blades on side A,
+          blade = profile + 90° − arccos(P/W·sin profile) + offset
+      Tracks the sun as it climbs; clamps at 100 % when the geometry
+      reaches the mechanical limit; returns 0 % at the bottom (rain
+      position).
 
-    - phase B (profile_angle >= flip_profile_threshold): blades flip
-      to the opposite face. The angle is given by the cutoff geometry
-      on side B:
-
-          blade = profile_angle − 90° + arccos(P/W · sin profile_angle)
-
-      This is the minimum tilt that closes the inter-blade gaps from
-      the opposite face for the current sun position.
+    - phase B (profile_angle >= flip_profile_threshold): blades on side B,
+          blade = profile − 90° + arccos(P/W·sin profile) + offset
 
     Calibration: the user picks `flip_profile_threshold` by watching
     `sensor.pergola_profile_angle` the moment the first ray leaks past
     the fully-tilted blades, and tunes `pitch_ratio` so the post-flip
     value matches the visually-optimal blade position.
     """
-    if profile_angle < flip_profile_threshold:
-        return 100.0
-
     sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
     if sin_arg >= 1.0:
-        return 100.0  # degenerate (sun behind face)
+        return 100.0  # degenerate (sun in face plane)
 
-    blade_angle = (
-        profile_angle - 90.0
-        + math.degrees(math.acos(sin_arg))
-        + calibration_offset
-    )
-    if blade_angle <= 0:
-        return 100.0
+    delta = math.degrees(math.acos(sin_arg))
 
+    if profile_angle < flip_profile_threshold:
+        # Phase A: side A cutoff — blades track the sun progressively.
+        blade = profile_angle + 90.0 - delta + calibration_offset
+        if blade <= 0:
+            return 0.0  # below mechanical range (rain position)
+        if blade >= max_opening_angle:
+            return 100.0  # above mechanical range
+        return quantize(
+            angle_to_percent(blade, max_opening_angle), step_size
+        )
+
+    # Phase B: side B cutoff.
+    blade = profile_angle - 90.0 + delta + calibration_offset
+    if blade <= 0:
+        return 100.0  # degenerate
     return quantize(
-        angle_to_percent(blade_angle, max_opening_angle), step_size
+        angle_to_percent(blade, max_opening_angle), step_size
     )
 
 

@@ -52,6 +52,8 @@ from .const import (
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_STEP_SIZE,
+    CONF_SUN_AZ_MAX,
+    CONF_SUN_AZ_MIN,
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
@@ -75,6 +77,7 @@ from .const import (
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
+    DEFAULT_SUN_AZ_HALF_WIDTH,
     DEFAULT_STEP_SIZE,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
@@ -172,6 +175,32 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): NumberSelector(
                 NumberSelectorConfig(
                     min=60, max=90, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_SUN_AZ_MIN,
+                default=d.get(
+                    CONF_SUN_AZ_MIN,
+                    d.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+                    - DEFAULT_SUN_AZ_HALF_WIDTH,
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_SUN_AZ_MAX,
+                default=d.get(
+                    CONF_SUN_AZ_MAX,
+                    d.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+                    + DEFAULT_SUN_AZ_HALF_WIDTH,
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="°",
                 )
             ),

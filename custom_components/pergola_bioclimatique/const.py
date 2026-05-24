@@ -18,6 +18,8 @@ CONF_MAX_OPENING_ANGLE = "max_opening_angle"
 CONF_CALIBRATION_OFFSET = "calibration_offset"
 CONF_BLADE_PITCH_RATIO = "blade_pitch_ratio"
 CONF_FLIP_PROFILE_THRESHOLD = "flip_profile_threshold"
+CONF_SUN_AZ_MIN = "sun_az_min"
+CONF_SUN_AZ_MAX = "sun_az_max"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -53,6 +55,15 @@ DEFAULT_BLADE_PITCH_RATIO = 0.92
 # beam of sun starts to leak past the fully-tilted blades; that value is
 # your real threshold.
 DEFAULT_FLIP_PROFILE_THRESHOLD = 80
+
+# Sun-exposure azimuth window for the pergola.
+# Outside this window the sun is geometrically blocked by the building
+# itself (east wall in the morning, west wall in the late afternoon) and
+# the pergola doesn't see direct rays — the algorithm short-circuits to
+# cloudy_target (diffuse light position) instead of computing a target.
+# Defaults are computed lazily as face_azimuth ± 90° (= the historical
+# behavior). Asymmetric to accommodate one-sided wall shadowing.
+DEFAULT_SUN_AZ_HALF_WIDTH = 90  # used to derive defaults from face_az
 
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5

@@ -48,6 +48,8 @@ from .const import (
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_STEP_SIZE,
+    CONF_SUN_AZ_MAX,
+    CONF_SUN_AZ_MIN,
     CONF_SUN_AZIMUTH_ENTITY,
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
@@ -60,6 +62,7 @@ from .const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
+    DEFAULT_SUN_AZ_HALF_WIDTH,
     DOMAIN,
     LOCK_ORIGINS,
     LOCK_RAIN,
@@ -470,10 +473,27 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             flip_threshold = self._cfg(
                 CONF_FLIP_PROFILE_THRESHOLD, DEFAULT_FLIP_PROFILE_THRESHOLD
             )
-            solar_percent = solar.compute_summer_target(
-                self._profile_angle, offset, max_angle, step,
-                pitch_ratio, flip_threshold,
+            sun_az_min = self._cfg(
+                CONF_SUN_AZ_MIN, face_azimuth - DEFAULT_SUN_AZ_HALF_WIDTH
             )
+            sun_az_max = self._cfg(
+                CONF_SUN_AZ_MAX, face_azimuth + DEFAULT_SUN_AZ_HALF_WIDTH
+            )
+            if not (sun_az_min <= azim <= sun_az_max):
+                # Sun outside the pergola's exposure window — the building
+                # itself is shadowing the protected zone, no direct rays
+                # to block. Fall back to diffuse-light position.
+                solar_percent = cloudy_target
+                summer_branch = "outside-window"
+            else:
+                solar_percent = solar.compute_summer_target(
+                    self._profile_angle, offset, max_angle, step,
+                    pitch_ratio, flip_threshold,
+                )
+                summer_branch = (
+                    "phase B" if self._profile_angle >= flip_threshold
+                    else "phase A"
+                )
 
         self._solar_target = solar_percent
 
@@ -485,15 +505,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._is_sunny, int(cloudy_target), int(min_useful),
             )
         else:
-            past_threshold = self._profile_angle >= flip_threshold
             _LOGGER.debug(
-                "Solar: profile_angle=%.1f° (flip_threshold=%d° → %s), "
-                "solar_target=%.0f%%, sunny=%s, cloudy_target=%d%%, "
-                "min_useful=%d%%",
-                self._profile_angle, int(flip_threshold),
-                "side B" if past_threshold else "side A clamp",
-                solar_percent, self._is_sunny, int(cloudy_target),
-                int(min_useful),
+                "Solar: profile=%.1f° az=%.1f° window=[%d°,%d°] "
+                "branch=%s flip_threshold=%d° → solar_target=%.0f%% "
+                "(sunny=%s, cloudy=%d%%, min_useful=%d%%)",
+                self._profile_angle, azim,
+                int(sun_az_min), int(sun_az_max),
+                summer_branch, int(flip_threshold),
+                solar_percent, self._is_sunny,
+                int(cloudy_target), int(min_useful),
             )
 
         # Final target decision.

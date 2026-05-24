@@ -44,6 +44,7 @@ def compute_summer_target(
     step_size: float,
     pitch_ratio: float,
     flip_profile_threshold: float,
+    summer_blade_offset: float = 0.0,
 ) -> float:
     """Compute summer mode target.
 
@@ -73,10 +74,11 @@ def compute_summer_target(
         return 100.0  # degenerate (sun in face plane)
 
     delta = math.degrees(math.acos(sin_arg))
+    total_offset = calibration_offset + summer_blade_offset
 
     if profile_angle < flip_profile_threshold:
         # Phase A: side A cutoff — blades track the sun progressively.
-        blade = profile_angle + 90.0 - delta + calibration_offset
+        blade = profile_angle + 90.0 - delta + total_offset
         if blade <= 0:
             return 0.0  # below mechanical range (rain position)
         if blade >= max_opening_angle:
@@ -86,7 +88,7 @@ def compute_summer_target(
         )
 
     # Phase B: side B cutoff.
-    blade = profile_angle - 90.0 + delta + calibration_offset
+    blade = profile_angle - 90.0 + delta + total_offset
     if blade <= 0:
         return 100.0  # degenerate
     return quantize(

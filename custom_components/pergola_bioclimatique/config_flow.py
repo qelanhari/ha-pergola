@@ -52,6 +52,7 @@ from .const import (
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_STEP_SIZE,
+    CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
     CONF_SUN_AZ_MIN,
     CONF_SUN_AZIMUTH_ENTITY,
@@ -77,6 +78,7 @@ from .const import (
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
+    DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DEFAULT_STEP_SIZE,
     DEFAULT_UPDATE_INTERVAL,
@@ -175,6 +177,17 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): NumberSelector(
                 NumberSelectorConfig(
                     min=60, max=90, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_SUMMER_BLADE_OFFSET,
+                default=d.get(
+                    CONF_SUMMER_BLADE_OFFSET, DEFAULT_SUMMER_BLADE_OFFSET
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=-30, max=30, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="°",
                 )
             ),

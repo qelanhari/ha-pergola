@@ -20,6 +20,7 @@ CONF_BLADE_PITCH_RATIO = "blade_pitch_ratio"
 CONF_FLIP_PROFILE_THRESHOLD = "flip_profile_threshold"
 CONF_SUN_AZ_MIN = "sun_az_min"
 CONF_SUN_AZ_MAX = "sun_az_max"
+CONF_SUMMER_BLADE_OFFSET = "summer_blade_offset"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -64,6 +65,11 @@ DEFAULT_FLIP_PROFILE_THRESHOLD = 80
 # Defaults are computed lazily as face_azimuth ± 90° (= the historical
 # behavior). Asymmetric to accommodate one-sided wall shadowing.
 DEFAULT_SUN_AZ_HALF_WIDTH = 90  # used to derive defaults from face_az
+
+# Summer-only blade offset (degrees), additive on top of calibration_offset.
+# Lets the user shift the summer curve (both phase A and phase B) without
+# affecting the winter algorithm. Positive value = more closure earlier.
+DEFAULT_SUMMER_BLADE_OFFSET = 0
 
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5

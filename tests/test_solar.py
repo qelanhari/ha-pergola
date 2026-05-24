@@ -199,6 +199,32 @@ class TestComputeSummerTarget:
         # → 49.7% → quantize → 50
         assert result == 50.0
 
+    def test_summer_blade_offset_shifts_phase_a_earlier(self) -> None:
+        """Field case 2026-05-24: at profile=50°, default algo gave 70 %.
+        With summer_blade_offset=+5, blade ≈ 99.84° → 73.96 % → quantize 75.
+        This is the empirical knob the user tunes when the bascule arrives
+        a few minutes late.
+        """
+        result = compute_summer_target(
+            profile_angle=50, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+            summer_blade_offset=5,
+        )
+        assert result == 75.0
+
+    def test_summer_blade_offset_also_affects_phase_b(self) -> None:
+        """Same +5° offset glides phase B up by ~3.7 % — acceptable side
+        effect. profile=87° (post-bascule yesterday): blade = 21.27 + 5 →
+        26.27° → 19.5 % → quantize 20 (was 15)."""
+        result = compute_summer_target(
+            profile_angle=87, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+            summer_blade_offset=5,
+        )
+        assert result == 20.0
+
     def test_lower_pitch_ratio_yields_higher_post_flip(self) -> None:
         """A user with thicker blades (lower P/W) calibrates pitch_ratio down;
         the post-flip target is then higher (blades closer to vertical)."""

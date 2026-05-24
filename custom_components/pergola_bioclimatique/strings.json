@@ -35,7 +35,8 @@
           "calibration_offset": "Calibration offset",
           "blade_pitch_ratio": "Blade pitch / width ratio",
           "flip_profile_threshold": "Bascule profile angle",
-          "summer_blade_offset": "Summer-only blade offset",
+          "summer_blade_offset": "Summer-only blade offset (phase B only)",
+          "phase_a_intercept": "Phase A start target (linear ramp)",
           "sun_az_min": "Sun exposure window — start azimuth",
           "sun_az_max": "Sun exposure window — end azimuth"
         },
@@ -45,7 +46,8 @@
           "calibration_offset": "Permanent correction offset for blade angle.",
           "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Default 0.92 for waterproof louvers; tune so the post-bascule target matches what you observe blocks best.",
           "flip_profile_threshold": "Profile angle (°) at which the blades flip from side A (clamped at 100% / full tilt) to side B (cutoff geometry, low tilt). Calibrate by observing sensor.pergola_profile_angle the moment a first beam of sun starts to leak past the fully-tilted blades. Default 80°; lower if the bascule happens too late, raise if too early.",
-          "summer_blade_offset": "Extra blade angle offset (°) applied to the summer algorithm only (both phase A and phase B), additive on top of calibration_offset. Use this to shift the whole summer curve without affecting the winter algorithm. Positive value = more closure earlier in the day.",
+          "summer_blade_offset": "Extra blade angle offset (°) applied to the summer algorithm phase B only (post-bascule, additive on top of calibration_offset). Does not affect phase A nor winter. Positive value = more closure on side B after the bascule.",
+          "phase_a_intercept": "Target percent at profile_angle=0 for the linear phase A ramp. Phase A interpolates linearly from this value up to 100% at the flip_profile_threshold. Calibrate by reading sensor.pergola_profile_angle at a moment when you observe the minimum closure that blocks rays — e.g. if at profile=60° the minimum is 85%, with threshold=85° this implies intercept ≈ (85·85 − 100·60) / (85−60) = 40%.",
           "sun_az_min": "Sun azimuth (°) at which the sun starts hitting the pergola in the morning. Below this azimuth the building itself shadows the protected zone and the algorithm falls back to the cloudy/diffuse position. Default face_azimuth − 90°; raise it if you observe the pergola is still shaded for a while after the sun rises above the eastern wall.",
           "sun_az_max": "Sun azimuth (°) past which the sun no longer hits the pergola in the late afternoon. Above this azimuth the algorithm falls back to the cloudy/diffuse position. Default face_azimuth + 90°; lower it if the western wall starts shadowing the protected zone before then."
         }
@@ -113,7 +115,8 @@
           "calibration_offset": "Calibration offset",
           "blade_pitch_ratio": "Blade pitch / width ratio",
           "flip_profile_threshold": "Bascule profile angle",
-          "summer_blade_offset": "Summer-only blade offset",
+          "summer_blade_offset": "Summer-only blade offset (phase B only)",
+          "phase_a_intercept": "Phase A start target (linear ramp)",
           "sun_az_min": "Sun exposure window — start azimuth",
           "sun_az_max": "Sun exposure window — end azimuth"
         },
@@ -123,7 +126,8 @@
           "calibration_offset": "Permanent correction offset for blade angle.",
           "blade_pitch_ratio": "Ratio P/W between blade pitch (center-to-center) and blade width. Default 0.92 for waterproof louvers; tune so the post-bascule target matches what you observe blocks best.",
           "flip_profile_threshold": "Profile angle (°) at which the blades flip from side A (clamped at 100% / full tilt) to side B (cutoff geometry, low tilt). Calibrate by observing sensor.pergola_profile_angle the moment a first beam of sun starts to leak past the fully-tilted blades. Default 80°; lower if the bascule happens too late, raise if too early.",
-          "summer_blade_offset": "Extra blade angle offset (°) applied to the summer algorithm only (both phase A and phase B), additive on top of calibration_offset. Use this to shift the whole summer curve without affecting the winter algorithm. Positive value = more closure earlier in the day.",
+          "summer_blade_offset": "Extra blade angle offset (°) applied to the summer algorithm phase B only (post-bascule, additive on top of calibration_offset). Does not affect phase A nor winter. Positive value = more closure on side B after the bascule.",
+          "phase_a_intercept": "Target percent at profile_angle=0 for the linear phase A ramp. Phase A interpolates linearly from this value up to 100% at the flip_profile_threshold. Calibrate by reading sensor.pergola_profile_angle at a moment when you observe the minimum closure that blocks rays — e.g. if at profile=60° the minimum is 85%, with threshold=85° this implies intercept ≈ (85·85 − 100·60) / (85−60) = 40%.",
           "sun_az_min": "Sun azimuth (°) at which the sun starts hitting the pergola in the morning. Below this azimuth the building itself shadows the protected zone and the algorithm falls back to the cloudy/diffuse position. Default face_azimuth − 90°; raise it if you observe the pergola is still shaded for a while after the sun rises above the eastern wall.",
           "sun_az_max": "Sun azimuth (°) past which the sun no longer hits the pergola in the late afternoon. Above this azimuth the algorithm falls back to the cloudy/diffuse position. Default face_azimuth + 90°; lower it if the western wall starts shadowing the protected zone before then."
         }

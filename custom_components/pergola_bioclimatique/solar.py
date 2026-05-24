@@ -45,50 +45,56 @@ def compute_summer_target(
     pitch_ratio: float,
     flip_profile_threshold: float,
     summer_blade_offset: float = 0.0,
+    phase_a_intercept: float = 40.0,
 ) -> float:
     """Compute summer mode target.
 
     Output: HA cover tilt position percent. 0% = blades flat (rain
-    position, cover "closed"). 100% = blades at max_opening_angle
-    (cover "open" in HA terms, but the slat overlap on side A still
-    blocks all direct rays up to the empirical bascule threshold).
+    position, cover "closed"). 100% = blades at max_opening_angle.
 
-    Two phases, both using cutoff geometry:
+    Two phases with DIFFERENT models — calibrated independently against
+    field observations:
 
-    - phase A (profile_angle < flip_profile_threshold): blades on side A,
-          blade = profile + 90° − arccos(P/W·sin profile) + offset
-      Tracks the sun as it climbs; clamps at 100 % when the geometry
-      reaches the mechanical limit; returns 0 % at the bottom (rain
-      position).
+    - phase A (profile_angle < flip_profile_threshold): **linear** ramp
+      from (0, phase_a_intercept) to (flip_profile_threshold, 100).
+      Empirical fit; the geometric cutoff formula has the wrong slope
+      for real-blade physics in this regime.
 
-    - phase B (profile_angle >= flip_profile_threshold): blades on side B,
+    - phase B (profile_angle >= flip_profile_threshold): **cutoff**
+      geometry,
           blade = profile − 90° + arccos(P/W·sin profile) + offset
+      where offset = calibration_offset + summer_blade_offset.
 
-    Calibration: the user picks `flip_profile_threshold` by watching
-    `sensor.pergola_profile_angle` the moment the first ray leaks past
-    the fully-tilted blades, and tunes `pitch_ratio` so the post-flip
-    value matches the visually-optimal blade position.
+    Calibration:
+      - flip_profile_threshold = profile where rays first leak past
+        fully-tilted blades.
+      - phase_a_intercept = target at profile=0; tune so phase A's
+        ramp passes through your observed "minimum closure to block"
+        at any known profile (linear interpolation).
+      - pitch_ratio + summer_blade_offset = phase B shape.
     """
+    if profile_angle < flip_profile_threshold:
+        # Phase A: linear ramp.
+        if profile_angle <= 0:
+            return quantize(phase_a_intercept, step_size)
+        target_pct = (
+            phase_a_intercept
+            + (100.0 - phase_a_intercept)
+            * profile_angle
+            / flip_profile_threshold
+        )
+        return quantize(target_pct, step_size)
+
+    # Phase B: cutoff geometry.
     sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
     if sin_arg >= 1.0:
         return 100.0  # degenerate (sun in face plane)
-
     delta = math.degrees(math.acos(sin_arg))
-    total_offset = calibration_offset + summer_blade_offset
-
-    if profile_angle < flip_profile_threshold:
-        # Phase A: side A cutoff — blades track the sun progressively.
-        blade = profile_angle + 90.0 - delta + total_offset
-        if blade <= 0:
-            return 0.0  # below mechanical range (rain position)
-        if blade >= max_opening_angle:
-            return 100.0  # above mechanical range
-        return quantize(
-            angle_to_percent(blade, max_opening_angle), step_size
-        )
-
-    # Phase B: side B cutoff.
-    blade = profile_angle - 90.0 + delta + total_offset
+    blade = (
+        profile_angle - 90.0
+        + delta
+        + calibration_offset + summer_blade_offset
+    )
     if blade <= 0:
         return 100.0  # degenerate
     return quantize(

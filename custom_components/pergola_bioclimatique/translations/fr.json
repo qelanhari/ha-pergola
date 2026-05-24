@@ -35,7 +35,8 @@
           "calibration_offset": "Offset de calibration",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
           "flip_profile_threshold": "Angle de profil de bascule",
-          "summer_blade_offset": "Décalage d'angle été",
+          "summer_blade_offset": "Décalage d'angle été (phase B seule)",
+          "phase_a_intercept": "Cible de départ phase A (rampe linéaire)",
           "sun_az_min": "Fenêtre d'exposition — azimut de début",
           "sun_az_max": "Fenêtre d'exposition — azimut de fin"
         },
@@ -45,7 +46,8 @@
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
           "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
-          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à l'algorithme été (phase A et phase B), additif au calibration_offset. Permet de décaler toute la courbe été sans toucher à l'algorithme hiver. Valeur positive = pergola plus fermée plus tôt dans la journée.",
+          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à la phase B de l'algorithme été (post-bascule, additif au calibration_offset). N'affecte ni la phase A ni l'hiver. Valeur positive = plus fermé sur la face B après la bascule.",
+          "phase_a_intercept": "Cible en pourcentage à profile_angle=0 pour la rampe linéaire de phase A. La phase A interpole linéairement de cette valeur jusqu'à 100 % au flip_profile_threshold. Calibrer en observant sensor.pergola_profile_angle à un moment où vous voyez la fermeture minimale qui bloque les rayons.",
           "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
           "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
         }
@@ -113,7 +115,8 @@
           "calibration_offset": "Offset de calibration",
           "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
           "flip_profile_threshold": "Angle de profil de bascule",
-          "summer_blade_offset": "Décalage d'angle été",
+          "summer_blade_offset": "Décalage d'angle été (phase B seule)",
+          "phase_a_intercept": "Cible de départ phase A (rampe linéaire)",
           "sun_az_min": "Fenêtre d'exposition — azimut de début",
           "sun_az_max": "Fenêtre d'exposition — azimut de fin"
         },
@@ -123,7 +126,8 @@
           "calibration_offset": "Correction permanente de l'angle des lames.",
           "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
           "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
-          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à l'algorithme été (phase A et phase B), additif au calibration_offset. Permet de décaler toute la courbe été sans toucher à l'algorithme hiver. Valeur positive = pergola plus fermée plus tôt dans la journée.",
+          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à la phase B de l'algorithme été (post-bascule, additif au calibration_offset). N'affecte ni la phase A ni l'hiver. Valeur positive = plus fermé sur la face B après la bascule.",
+          "phase_a_intercept": "Cible en pourcentage à profile_angle=0 pour la rampe linéaire de phase A. La phase A interpole linéairement de cette valeur jusqu'à 100 % au flip_profile_threshold. Calibrer en observant sensor.pergola_profile_angle à un moment où vous voyez la fermeture minimale qui bloque les rayons.",
           "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
           "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
         }

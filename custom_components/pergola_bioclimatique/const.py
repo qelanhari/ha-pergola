@@ -21,6 +21,7 @@ CONF_FLIP_PROFILE_THRESHOLD = "flip_profile_threshold"
 CONF_SUN_AZ_MIN = "sun_az_min"
 CONF_SUN_AZ_MAX = "sun_az_max"
 CONF_SUMMER_BLADE_OFFSET = "summer_blade_offset"
+CONF_PHASE_A_INTERCEPT = "phase_a_intercept"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -70,6 +71,15 @@ DEFAULT_SUN_AZ_HALF_WIDTH = 90  # used to derive defaults from face_az
 # Lets the user shift the summer curve (both phase A and phase B) without
 # affecting the winter algorithm. Positive value = more closure earlier.
 DEFAULT_SUMMER_BLADE_OFFSET = 0
+
+# Phase A is a linear ramp from (profile=0, target=phase_a_intercept) to
+# (profile=flip_profile_threshold, target=100%). The cutoff formula has
+# the wrong slope for real-blade physics (theoretical model over-closes
+# in mid phase A); a linear model matches field observations across the
+# whole range. Calibration: pick a value of phase_a_intercept that gives
+# the right target at a known profile angle (e.g., the morning moment
+# when first rays start passing).
+DEFAULT_PHASE_A_INTERCEPT = 40
 
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5

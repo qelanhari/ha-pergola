@@ -51,6 +51,7 @@ from .const import (
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
+    CONF_PHASE_A_INTERCEPT,
     CONF_STEP_SIZE,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
@@ -78,6 +79,7 @@ from .const import (
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
+    DEFAULT_PHASE_A_INTERCEPT,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DEFAULT_STEP_SIZE,
@@ -189,6 +191,17 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 NumberSelectorConfig(
                     min=-30, max=30, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_PHASE_A_INTERCEPT,
+                default=d.get(
+                    CONF_PHASE_A_INTERCEPT, DEFAULT_PHASE_A_INTERCEPT
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=80, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
                 )
             ),
             vol.Required(

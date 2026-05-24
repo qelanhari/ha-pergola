@@ -47,6 +47,7 @@ from .const import (
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
+    CONF_PHASE_A_INTERCEPT,
     CONF_STEP_SIZE,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
@@ -63,6 +64,7 @@ from .const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
+    DEFAULT_PHASE_A_INTERCEPT,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DOMAIN,
@@ -491,13 +493,18 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 summer_offset = self._cfg(
                     CONF_SUMMER_BLADE_OFFSET, DEFAULT_SUMMER_BLADE_OFFSET
                 )
+                phase_a_intercept = self._cfg(
+                    CONF_PHASE_A_INTERCEPT, DEFAULT_PHASE_A_INTERCEPT
+                )
                 solar_percent = solar.compute_summer_target(
                     self._profile_angle, offset, max_angle, step,
-                    pitch_ratio, flip_threshold, summer_offset,
+                    pitch_ratio, flip_threshold,
+                    summer_offset, phase_a_intercept,
                 )
                 summer_branch = (
-                    "phase B" if self._profile_angle >= flip_threshold
-                    else "phase A"
+                    "phase B (cutoff)"
+                    if self._profile_angle >= flip_threshold
+                    else "phase A (linear)"
                 )
 
         self._solar_target = solar_percent

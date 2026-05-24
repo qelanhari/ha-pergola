@@ -96,55 +96,80 @@ class TestComputeWinterTarget:
 
 
 class TestComputeSummerTarget:
-    """Threshold-based summer algorithm.
+    """Linear phase A + cutoff phase B summer algorithm.
 
-    profile < flip_profile_threshold → 100% (side A clamp).
-    profile >= flip_profile_threshold → side B cutoff geometry.
+    Phase A (profile < flip_profile_threshold): linear interpolation
+    from (0, phase_a_intercept) to (flip_threshold, 100%).
+
+    Phase B (profile >= flip_threshold): cutoff side B formula
+    (calibration_offset + summer_blade_offset apply here).
     """
 
-    def test_phase_a_tracks_sun_progressively(self) -> None:
-        """Phase A is no longer a flat clamp at 100 % — it follows the
-        cutoff side A geometry. profile=40 → blade ≈ 76°, ~55 %."""
+    def test_phase_a_linear_ramp_at_intercept_default(self) -> None:
+        """profile=40, threshold=80, intercept=40 (default):
+        target = 40 + 60·40/80 = 70."""
         result = compute_summer_target(
             profile_angle=40, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=80,
+            phase_a_intercept=40,
         )
-        # 40 + 90 − arccos(0.92·sin40°) = 130 − arccos(0.591) = 76.26°
-        # 76.26/135 = 56.5 % → quantize step 5 → 55
-        assert result == 55.0
+        assert result == 70.0
 
-    def test_phase_a_field_case_at_67_degrees(self) -> None:
-        """Field observation 13h on 23 May 2026: profile=67° → ~93 % → 95%
-        (matches the operator's "90 % was right" intuition closely)."""
-        result = compute_summer_target(
-            profile_angle=67.23, calibration_offset=0,
-            max_opening_angle=135, step_size=5,
-            pitch_ratio=0.92, flip_profile_threshold=80,
-        )
-        # 67.23 + 90 − arccos(0.92·sin67.23°) = 157.23 − 31.96 = 125.27°
-        # 125.27/135 = 92.79 % → quantize → 95
-        assert result == 95.0
+    def test_phase_a_field_three_points_colinear(self) -> None:
+        """Three field observations (face_az=130°, threshold=85°,
+        intercept=40) lie on the linear ramp:
+          - profile=50 → 75% (morning, just enough to block)
+          - profile=64 → 85% (mid-day, observed minimum)
+          - profile=84.9 → 100% (asymptote at the threshold)
 
-    def test_phase_a_clamps_at_100_when_blade_overflows(self) -> None:
-        """profile=82° with threshold=85° stays in phase A; blade overflows
-        max_opening_angle → clamp 100 %."""
+        profile=85 itself crosses into phase B (cutoff side B → 15%);
+        that's tested separately.
+        """
+        for profile, expected in [(50, 75), (64, 85), (84.9, 100)]:
+            result = compute_summer_target(
+                profile_angle=profile, calibration_offset=0,
+                max_opening_angle=135, step_size=5,
+                pitch_ratio=0.92, flip_profile_threshold=85,
+                phase_a_intercept=40,
+            )
+            assert result == float(expected), (
+                f"profile={profile}: expected {expected}, got {result}"
+            )
+
+    def test_phase_a_intercept_zero(self) -> None:
+        """With intercept=0, phase A is a pure 0 → 100 linear ramp."""
         result = compute_summer_target(
-            profile_angle=82, calibration_offset=0,
+            profile_angle=42.5, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=85,
+            phase_a_intercept=0,
         )
-        # 82 + 90 − arccos(0.92·sin82°) = 172 − 24.27 = 147.73 > 135 → 100
-        assert result == 100.0
+        # target = 0 + 100·42.5/85 = 50
+        assert result == 50.0
 
-    def test_phase_a_zero_profile_returns_rain_position(self) -> None:
-        """profile=0: blade = 0+90−arccos(0) = 0° → 0 % (rain position)."""
+    def test_phase_a_zero_profile_returns_intercept(self) -> None:
+        """profile=0 → target = intercept (theoretical, in practice
+        masked by sun_az_min in the coordinator)."""
         result = compute_summer_target(
             profile_angle=0, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=80,
+            phase_a_intercept=40,
         )
-        assert result == 0.0
+        assert result == 40.0
+
+    def test_phase_a_overflow_clamps_at_100(self) -> None:
+        """Linear interpolation can exceed 100 if profile briefly tops
+        the threshold without crossing into phase B; quantize clamps."""
+        result = compute_summer_target(
+            profile_angle=84, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+            phase_a_intercept=40,
+        )
+        # 40 + 60·84/85 = 99.29 → quantize 100
+        assert result == 100.0
 
     def test_afternoon_just_after_flip(self) -> None:
         """Field observation 14h45 on 23 May 2026: profile≈82°, offset=0,
@@ -199,30 +224,29 @@ class TestComputeSummerTarget:
         # → 49.7% → quantize → 50
         assert result == 50.0
 
-    def test_summer_blade_offset_shifts_phase_a_earlier(self) -> None:
-        """Field case 2026-05-24: at profile=50°, default algo gave 70 %.
-        With summer_blade_offset=+5, blade ≈ 99.84° → 73.96 % → quantize 75.
-        This is the empirical knob the user tunes when the bascule arrives
-        a few minutes late.
-        """
+    def test_summer_blade_offset_does_not_affect_phase_a(self) -> None:
+        """v1.13.3+: summer_blade_offset is phase B only. Phase A is the
+        linear ramp regardless of the offset."""
         result = compute_summer_target(
             profile_angle=50, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=85,
-            summer_blade_offset=5,
+            summer_blade_offset=10,
+            phase_a_intercept=40,
         )
+        # Linear: 40 + 60·50/85 = 75.29 → quantize 75 (offset ignored)
         assert result == 75.0
 
-    def test_summer_blade_offset_also_affects_phase_b(self) -> None:
-        """Same +5° offset glides phase B up by ~3.7 % — acceptable side
-        effect. profile=87° (post-bascule yesterday): blade = 21.27 + 5 →
-        26.27° → 19.5 % → quantize 20 (was 15)."""
+    def test_summer_blade_offset_still_affects_phase_b(self) -> None:
+        """Phase B remains tunable via summer_blade_offset."""
         result = compute_summer_target(
             profile_angle=87, calibration_offset=0,
             max_opening_angle=135, step_size=5,
             pitch_ratio=0.92, flip_profile_threshold=85,
             summer_blade_offset=5,
+            phase_a_intercept=40,
         )
+        # Phase B blade = -3 + arccos(0.917) + 0 + 5 = 25.31° → 18.7% → 20
         assert result == 20.0
 
     def test_lower_pitch_ratio_yields_higher_post_flip(self) -> None:

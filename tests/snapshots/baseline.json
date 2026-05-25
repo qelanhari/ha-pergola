@@ -1,0 +1,216 @@
+{
+  "defaults": {
+    "blade_pitch_ratio": 0.92,
+    "calibration_offset": -10,
+    "face_azimuth": 130,
+    "flip_profile_threshold": 80,
+    "max_opening_angle": 135,
+    "phase_a_intercept": 40,
+    "step_size": 5,
+    "summer_blade_offset": 0
+  },
+  "summer_day": [
+    {
+      "azimuth": 65.0,
+      "elevation": 5.0,
+      "hour": "06:00",
+      "profile_angle": 11.6959,
+      "summer_target": 50.0,
+      "winter_target": 0.0
+    },
+    {
+      "azimuth": 75.0,
+      "elevation": 15.0,
+      "hour": "07:00",
+      "profile_angle": 25.0399,
+      "summer_target": 60.0,
+      "winter_target": 10.0
+    },
+    {
+      "azimuth": 85.0,
+      "elevation": 26.0,
+      "hour": "08:00",
+      "profile_angle": 34.5963,
+      "summer_target": 65.0,
+      "winter_target": 20.0
+    },
+    {
+      "azimuth": 96.0,
+      "elevation": 37.0,
+      "hour": "09:00",
+      "profile_angle": 42.2693,
+      "summer_target": 70.0,
+      "winter_target": 25.0
+    },
+    {
+      "azimuth": 110.0,
+      "elevation": 48.0,
+      "hour": "10:00",
+      "profile_angle": 49.7653,
+      "summer_target": 75.0,
+      "winter_target": 30.0
+    },
+    {
+      "azimuth": 130.0,
+      "elevation": 58.0,
+      "hour": "11:00",
+      "profile_angle": 58.0,
+      "summer_target": 85.0,
+      "winter_target": 35.0
+    },
+    {
+      "azimuth": 160.0,
+      "elevation": 65.0,
+      "hour": "12:00",
+      "profile_angle": 68.0095,
+      "summer_target": 90.0,
+      "winter_target": 45.0
+    },
+    {
+      "azimuth": 195.0,
+      "elevation": 68.0,
+      "hour": "13:00",
+      "profile_angle": 80.3103,
+      "summer_target": 5.0,
+      "winter_target": 50.0
+    },
+    {
+      "azimuth": 225.0,
+      "elevation": 64.0,
+      "hour": "14:00",
+      "profile_angle": 92.4341,
+      "summer_target": 10.0,
+      "winter_target": 60.0
+    },
+    {
+      "azimuth": 245.0,
+      "elevation": 55.0,
+      "hour": "15:00",
+      "profile_angle": 106.4846,
+      "summer_target": 25.0,
+      "winter_target": 70.0
+    },
+    {
+      "azimuth": 260.0,
+      "elevation": 44.0,
+      "hour": "16:00",
+      "profile_angle": 123.6488,
+      "summer_target": 45.0,
+      "winter_target": 85.0
+    },
+    {
+      "azimuth": 272.0,
+      "elevation": 33.0,
+      "hour": "17:00",
+      "profile_angle": 140.5077,
+      "summer_target": 70.0,
+      "winter_target": 95.0
+    },
+    {
+      "azimuth": 283.0,
+      "elevation": 22.0,
+      "hour": "18:00",
+      "profile_angle": 155.6081,
+      "summer_target": 90.0,
+      "winter_target": 100.0
+    },
+    {
+      "azimuth": 293.0,
+      "elevation": 11.0,
+      "hour": "19:00",
+      "profile_angle": 168.5105,
+      "summer_target": 100.0,
+      "winter_target": 100.0
+    },
+    {
+      "azimuth": 302.0,
+      "elevation": 2.0,
+      "hour": "20:00",
+      "profile_angle": 177.9804,
+      "summer_target": 100.0,
+      "winter_target": 100.0
+    }
+  ],
+  "winter_day": [
+    {
+      "azimuth": 122.0,
+      "elevation": 3.0,
+      "hour": "08:00",
+      "profile_angle": 3.0294,
+      "summer_target": 40.0,
+      "winter_target": 0.0
+    },
+    {
+      "azimuth": 135.0,
+      "elevation": 11.0,
+      "hour": "09:00",
+      "profile_angle": 11.041,
+      "summer_target": 50.0,
+      "winter_target": 0.0
+    },
+    {
+      "azimuth": 150.0,
+      "elevation": 18.0,
+      "hour": "10:00",
+      "profile_angle": 19.074,
+      "summer_target": 55.0,
+      "winter_target": 5.0
+    },
+    {
+      "azimuth": 168.0,
+      "elevation": 22.0,
+      "hour": "11:00",
+      "profile_angle": 27.145,
+      "summer_target": 60.0,
+      "winter_target": 15.0
+    },
+    {
+      "azimuth": 187.0,
+      "elevation": 25.0,
+      "hour": "12:00",
+      "profile_angle": 40.5694,
+      "summer_target": 70.0,
+      "winter_target": 25.0
+    },
+    {
+      "azimuth": 207.0,
+      "elevation": 25.0,
+      "hour": "13:00",
+      "profile_angle": 64.2469,
+      "summer_target": 90.0,
+      "winter_target": 40.0
+    },
+    {
+      "azimuth": 225.0,
+      "elevation": 22.0,
+      "hour": "14:00",
+      "profile_angle": 102.1732,
+      "summer_target": 20.0,
+      "winter_target": 70.0
+    },
+    {
+      "azimuth": 240.0,
+      "elevation": 17.0,
+      "hour": "15:00",
+      "profile_angle": 138.2066,
+      "summer_target": 65.0,
+      "winter_target": 95.0
+    },
+    {
+      "azimuth": 254.0,
+      "elevation": 9.0,
+      "hour": "16:00",
+      "profile_angle": 164.1859,
+      "summer_target": 100.0,
+      "winter_target": 100.0
+    },
+    {
+      "azimuth": 266.0,
+      "elevation": 1.0,
+      "hour": "17:00",
+      "profile_angle": 178.61,
+      "summer_target": 100.0,
+      "winter_target": 100.0
+    }
+  ]
+}

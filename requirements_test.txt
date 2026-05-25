@@ -1,0 +1,20 @@
+# Test-only dependencies for pergola_bioclimatique.
+#
+# The core math test suite (tests/test_solar.py and tests/test_config_flow_helpers.py)
+# runs under plain `pytest` with nothing installed beyond the standard library — see
+# the sys.path / stub-import pattern at the top of each file.
+#
+# This file lists the additional packages needed to run the full config-flow
+# integration tests (tests/test_config_flow.py), which exercise the install
+# wizard and Options flow against a mocked Home Assistant instance.
+#
+# Recommended workflow on a developer machine:
+#
+#     python3 -m venv .venv-test
+#     .venv-test/bin/pip install -r requirements_test.txt
+#     .venv-test/bin/pytest
+#
+# The brew-managed system Python on macOS frequently conflicts with these
+# dependencies; the venv keeps the install isolated and disposable.
+
+pytest-homeassistant-custom-component

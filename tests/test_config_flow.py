@@ -48,6 +48,7 @@ from custom_components.pergola_bioclimatique.const import (
     CONF_MAX_OPENING_ANGLE,
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
+    CONF_PERGOLA_MODEL,
     CONF_PHASE_A_INTERCEPT,
     CONF_PV_MAX_WATTS,
     CONF_PV_OBSERVABLE_COS,
@@ -77,6 +78,7 @@ from custom_components.pergola_bioclimatique.const import (
     DEFAULT_MAX_OPENING_ANGLE,
     DEFAULT_MIN_ELEVATION,
     DEFAULT_MIN_USEFUL_PERCENT,
+    DEFAULT_PERGOLA_MODEL,
     DEFAULT_PHASE_A_INTERCEPT,
     DEFAULT_PV_MAX_WATTS,
     DEFAULT_PV_OBSERVABLE_COS,
@@ -171,11 +173,13 @@ def _step3_default_operation() -> dict:
 
 def _expected_default_data(face_az: int, *, with_cloud: bool) -> dict:
     """The dict the new basic flow stores when the user leaves everything at
-    default. Mirror of `tests/test_config_flow_helpers.py::_new_basic_install_dict`."""
+    default (model = `custom`). Mirror of
+    `tests/test_config_flow_helpers.py::_new_basic_install_dict`."""
     data = {
         CONF_COVER_ENTITY: "cover.pergola",
         CONF_SUN_AZIMUTH_ENTITY: SUN_AZIMUTH_ENTITY,
         CONF_SUN_ELEVATION_ENTITY: SUN_ELEVATION_ENTITY,
+        CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
         CONF_FACE_AZIMUTH: face_az,
         CONF_MAX_OPENING_ANGLE: DEFAULT_MAX_OPENING_ANGLE,
         CONF_CALIBRATION_OFFSET: DEFAULT_CALIBRATION_OFFSET,
@@ -239,7 +243,11 @@ class TestInstallFlow:
 
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH, "advanced": False},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
         )
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "operation"
@@ -269,7 +277,11 @@ class TestInstallFlow:
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH, "advanced": False},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], _step3_default_operation()
@@ -300,7 +312,11 @@ class TestInstallFlow:
         # Basic geometry — request advanced
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: 200, "advanced": True},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: 200,
+                "advanced": True,
+            },
         )
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "geometry_advanced"
@@ -350,7 +366,11 @@ class TestInstallFlow:
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH, "advanced": False},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], _step3_default_operation()
@@ -382,6 +402,44 @@ class TestInstallFlow:
         assert result["data"][CONF_PV_PANEL_AZIMUTH] == 180
         assert result["data"][CONF_PV_PANEL_TILT] == 25
         assert result["data"][CONF_PV_SUNNY_RATIO] == 0.45
+
+    async def test_preset_selection_applies_manufacturer_values(
+        self, hass: HomeAssistant, mock_sun_states
+    ) -> None:
+        """Picking a known pergola model in the basic geometry step overlays
+        the manufacturer's published specs on top of the integration defaults.
+
+        `renson_camargue` is verified at max_opening_angle=150° (vs. the
+        integration default of 135°). The stored entry must reflect both
+        the chosen model id and the overridden max_opening_angle, while
+        every other geometry field stays at its integration default.
+        """
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _step1_payload()
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_PERGOLA_MODEL: "renson_camargue",
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _step3_default_operation()
+        )
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_PERGOLA_MODEL] == "renson_camargue"
+        assert result["data"][CONF_MAX_OPENING_ANGLE] == 150
+        # Every other geometry field should still be at the integration default
+        # (Renson doesn't publish blade pitch / phase A / etc).
+        assert result["data"][CONF_BLADE_PITCH_RATIO] == DEFAULT_BLADE_PITCH_RATIO
+        assert result["data"][CONF_FLIP_PROFILE_THRESHOLD] == DEFAULT_FLIP_PROFILE_THRESHOLD
+        assert result["data"][CONF_PHASE_A_INTERCEPT] == DEFAULT_PHASE_A_INTERCEPT
+        assert result["data"][CONF_SUMMER_BLADE_OFFSET] == DEFAULT_SUMMER_BLADE_OFFSET
 
     async def test_entity_not_found_error(
         self, hass: HomeAssistant, mock_sun_states
@@ -467,7 +525,11 @@ class TestOptionsFlow:
         assert result["step_id"] == "geometry_basic"
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH, "advanced": False},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
         )
         assert result["step_id"] == "operation"
         result = await hass.config_entries.options.async_configure(
@@ -489,7 +551,11 @@ class TestOptionsFlow:
         assert result["step_id"] == "geometry_basic"
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            {CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH, "advanced": False},
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
         )
         assert result["step_id"] == "operation"
         result = await hass.config_entries.options.async_configure(

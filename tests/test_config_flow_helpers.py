@@ -55,6 +55,9 @@ def _install_stubs_if_needed() -> None:
                 "NumberSelector",
                 "NumberSelectorConfig",
                 "NumberSelectorMode",
+                "SelectSelector",
+                "SelectSelectorConfig",
+                "SelectSelectorMode",
             )
         },
         "voluptuous": {
@@ -93,12 +96,23 @@ const = importlib.util.module_from_spec(_const_spec)
 sys.modules["_pergola_test.const"] = const
 _const_spec.loader.exec_module(const)
 
-# `config_flow.py` does `from .const import …`. To make that resolve to our
-# private `_pergola_test.const` we rewrite its module name before exec'ing.
+# `presets.py` does `from .const import …`. Rewrite to our private namespace.
 import re
 
+_presets_source = (_PKG_ROOT / "presets.py").read_text()
+_presets_source = re.sub(
+    r"from \.const import", "from _pergola_test.const import", _presets_source
+)
+_presets_module = types.ModuleType("_pergola_test.presets")
+_presets_module.__file__ = str(_PKG_ROOT / "presets.py")
+exec(compile(_presets_source, str(_PKG_ROOT / "presets.py"), "exec"), _presets_module.__dict__)
+sys.modules["_pergola_test.presets"] = _presets_module
+
+# `config_flow.py` does `from .const import …` and `from .presets import …`.
+# Rewrite both to our private namespace.
 _cf_source = (_PKG_ROOT / "config_flow.py").read_text()
 _cf_source = re.sub(r"from \.const import", "from _pergola_test.const import", _cf_source)
+_cf_source = re.sub(r"from \.presets import", "from _pergola_test.presets import", _cf_source)
 _cf_module = types.ModuleType("_pergola_test.config_flow")
 _cf_module.__file__ = str(_PKG_ROOT / "config_flow.py")
 exec(compile(_cf_source, str(_PKG_ROOT / "config_flow.py"), "exec"), _cf_module.__dict__)
@@ -315,10 +329,13 @@ _OPERATION_DEFAULTS = {
 
 
 def _legacy_default_install_dict(face_az: int, with_cloud: bool) -> dict:
-    """What the v1.13.4 flow would have stored for a user who left every field
-    at its default. Reconstructed from the per-key schema defaults in the old
-    `_geometry_schema`, `_operation_schema`, and `_cloud_schema`."""
-    out = {const.CONF_FACE_AZIMUTH: face_az}
+    """What the v1.15 flow stores for a user who left every field at default
+    (i.e. picked the implicit ``"custom"`` model). Mirrors v1.13.4 storage
+    PLUS the new ``pergola_model`` informational key introduced in v1.15."""
+    out = {
+        const.CONF_PERGOLA_MODEL: const.DEFAULT_PERGOLA_MODEL,
+        const.CONF_FACE_AZIMUTH: face_az,
+    }
     out.update({
         const.CONF_MAX_OPENING_ANGLE: const.DEFAULT_MAX_OPENING_ANGLE,
         const.CONF_CALIBRATION_OFFSET: const.DEFAULT_CALIBRATION_OFFSET,
@@ -353,11 +370,15 @@ def _legacy_default_install_dict(face_az: int, with_cloud: bool) -> dict:
 
 
 def _new_basic_install_dict(face_az: int, with_cloud: bool) -> dict:
-    """What the new basic flow stores when the user leaves the advanced
-    toggle unchecked at every step. Models the in-coordinator data dict
-    assembled by `_create_entry` after walking the geometry / operation /
-    (optional) cloud-detection sub-flows."""
-    out = {const.CONF_FACE_AZIMUTH: face_az}
+    """What the new basic flow stores when the user picks ``"custom"`` in the
+    pergola-model dropdown and leaves the advanced toggle unchecked at every
+    step. Models the in-coordinator data dict assembled by `_create_entry`
+    after walking the geometry / operation / (optional) cloud-detection
+    sub-flows."""
+    out = {
+        const.CONF_PERGOLA_MODEL: const.DEFAULT_PERGOLA_MODEL,
+        const.CONF_FACE_AZIMUTH: face_az,
+    }
     out.update(cf._geometry_defaults(face_az))
     out.update(_OPERATION_DEFAULTS)
     if with_cloud:

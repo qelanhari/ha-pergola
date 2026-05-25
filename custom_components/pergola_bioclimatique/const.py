@@ -13,6 +13,7 @@ CONF_PRIORITY_LOCK_ENTITY = "priority_lock_entity"
 CONF_PRIORITY_LOCK_TIMER_ENTITY = "priority_lock_timer_entity"
 
 # Config keys — Step 2: Geometry
+CONF_PERGOLA_MODEL = "pergola_model"
 CONF_FACE_AZIMUTH = "face_azimuth"
 CONF_MAX_OPENING_ANGLE = "max_opening_angle"
 CONF_CALIBRATION_OFFSET = "calibration_offset"
@@ -45,6 +46,11 @@ CONF_LUX_AZ_MIN = "lux_az_min"
 CONF_LUX_AZ_MAX = "lux_az_max"
 
 # Defaults — Geometry
+# Pergola model preset identifier. "custom" means "use integration defaults"
+# (legacy v1.14 behavior). Stored in config entry but never read by the
+# coordinator — purely a UI hint so the Options flow can pre-select the
+# user's chosen model. See presets.py for the full list of supported models.
+DEFAULT_PERGOLA_MODEL = "custom"
 DEFAULT_FACE_AZIMUTH = 130
 DEFAULT_MAX_OPENING_ANGLE = 135
 DEFAULT_CALIBRATION_OFFSET = -10

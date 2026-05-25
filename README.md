@@ -25,11 +25,22 @@ You don't need to know anything about blade geometry, profile angles, or solar t
 The setup wizard has 3 mandatory steps (4 if you wire up cloud detection). All advanced knobs are hidden behind a **Show advanced settings** checkbox — leave it unticked unless you have a specific reason to tune.
 
 1. **Pick the pergola and its sensors.** Choose your cover entity and the Sun integration sensors (auto-detected). PV/light/humidity/safety-lock sensors are optional.
-2. **Pergola facing direction.** Enter one number: which way your pergola faces, in compass degrees.
+2. **Pergola model and facing direction.** Pick your pergola model from the dropdown if it's listed (the manufacturer's published specs get filled in automatically); otherwise pick *Custom / Other*. Then enter the compass bearing the pergola faces.
 3. **Operation.** How often to run, default standby position, humidity limit. Defaults are fine.
 4. **Cloud detection** *(only if you picked a PV or light sensor)*. Enter your inverter's nameplate peak power. Defaults are fine for the rest.
 
 That's it. The pergola will calibrate on the next sunny morning and start tracking the sun.
+
+#### Supported pergola models in v1.15
+
+The dropdown ships with these presets — each fills in the manufacturer's published maximum blade rotation angle so you don't have to look it up:
+
+- **Brustor** B200, B200 XL, B250 — 135° max rotation
+- **Renson** Camargue — 150°; Camargue Skye — 135°; Algarve — 150°
+- **Pratic** Vision — 140°
+- **Corradi** Maestro — 140°
+
+**⚠ Only the Brustor B200 XL has been tested end-to-end on real hardware** (it's the maintainer's own pergola). Every other preset is populated from the manufacturer's published spec sheet but hasn't been field-validated. The seasonal-mode algorithm was tuned for Brustor-style waterproof louvers — users of other brands may need to fine-tune `blade_pitch_ratio`, `flip_profile_threshold`, `phase_a_intercept`, or `summer_blade_offset` via the advanced settings if behavior drifts. **If you spot a spec error or want a preset added/adjusted, please [open an issue](https://github.com/qelanhari/ha-pergola/issues) with your model and the correction.**
 
 ### How to find your facing direction
 
@@ -99,6 +110,28 @@ Switch modes at any time via the **Mode** select. Switching to **Manuel** stops 
 
 Every default is intentional. The integration is pre-tuned for a typical aluminium waterproof louver pergola with a `0.92` blade pitch/width ratio and a `135°` mechanical max. If your hardware is different, or you want to dial in calibration precisely, read on.
 
+### Pergola model presets
+
+The setup wizard's "Pergola model" dropdown picks from a small registry of brand+model entries in [`presets.py`](custom_components/pergola_bioclimatique/presets.py). In v1.15 each shipped preset sets a single field: `max_opening_angle` (the mechanical blade tilt corresponding to 100% on the cover entity). Everything else stays at the integration's tuned defaults — manufacturers don't publish blade pitch, flip threshold, or any of the empirical parameters that come from field observation.
+
+| Preset | Verified `max_opening_angle` | Source |
+|---|---|---|
+| Brustor B200 / B200 XL / B250 | 135° | Maintainer's B200 XL with 21cm blades |
+| Renson Camargue | 150° | [renson.net](https://renson.net/en-us/products/pergolas/camargue) |
+| Renson Camargue Skye | 135° | [renson.net](https://renson.net/en-us/products/pergolas/camargue-skye) |
+| Renson Algarve | 150° | [renson.net](https://renson.net/en-us/products/pergolas/algarve) |
+| Pratic Vision | 140° | [pratic.it](https://www.pratic.it/en/product/vision/) |
+| Corradi Maestro | 140° | [corradi.eu](https://www.corradi.eu/en/products/bioclimatics/maestro) |
+
+**End-to-end validation status**: only the Brustor B200 XL is field-validated. Other entries are taken at face value from the manufacturer's product page. The seasonal-mode algorithm itself was tuned on a Brustor-style waterproof louver pergola; non-Brustor users may need to tweak `flip_profile_threshold`, `phase_a_intercept`, and `summer_blade_offset` via the advanced view if they observe drift.
+
+#### Contributing a correction or a new preset
+
+If your pergola isn't listed, or a value is wrong for your installation:
+
+1. **Quick path**: [open an issue](https://github.com/qelanhari/ha-pergola/issues) with your brand, model, and a link to the published spec sheet (or your own measurement). I'll add it to the next release.
+2. **PR path**: append your entry to `custom_components/pergola_bioclimatique/presets.py`, run `pytest tests/test_presets.py`, and open a PR. Include the source URL in the entry's `source_url` field.
+
 ### Architecture
 
 The integration is a single-device integration built around one `DataUpdateCoordinator`. All entities are thin views over `coordinator.data`. Pure solar math lives in `solar.py` (no Home Assistant imports — runs standalone and is exercised by `tests/test_solar.py`).
@@ -111,6 +144,7 @@ custom_components/pergola_bioclimatique/
 ├── solar.py               — pure functions (compute_profile_angle, *_target, …)
 ├── config_flow.py         — install wizard + Options flow (basic/advanced)
 ├── const.py               — every CONF_* / DEFAULT_*
+├── presets.py             — pergola model preset registry
 ├── select.py / sensor.py / binary_sensor.py / button.py — entity surface
 ├── strings.json + translations/{en,fr}.json
 ```

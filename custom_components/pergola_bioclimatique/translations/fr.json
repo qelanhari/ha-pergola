@@ -28,13 +28,15 @@
         }
       },
       "geometry": {
-        "title": "Vers où est orientée votre pergola ?",
-        "description": "Placez-vous sous la pergola en regardant vers l'extérieur (la direction d'où vient le soleil à protéger) et relevez le cap sur l'appli boussole de votre téléphone. C'est votre direction d'orientation.\n\nLaissez tous les autres paramètres par défaut — l'algorithme est pré-réglé pour les pergolas étanches à lames standard. Cochez **Afficher les paramètres avancés** seulement si vous voulez régler la géométrie vous-même.",
+        "title": "Quelle pergola avez-vous, et vers où est-elle orientée ?",
+        "description": "Choisissez votre modèle de pergola dans la liste s'il y est — les spécifications publiées par le fabricant sont alors remplies automatiquement. Puis pointez l'appli boussole de votre téléphone vers l'extérieur depuis sous la pergola et entrez le cap.\n\nLaissez tous les autres paramètres par défaut — l'algorithme est pré-réglé pour les pergolas étanches à lames standard. Cochez **Afficher les paramètres avancés** seulement si vous voulez régler la géométrie vous-même.",
         "data": {
+          "pergola_model": "Modèle de pergola",
           "face_azimuth": "Direction d'orientation de la pergola (degrés)",
           "advanced": "Afficher les paramètres avancés"
         },
         "data_description": {
+          "pergola_model": "Choisissez votre modèle de pergola pour pré-remplir automatiquement les spécifications publiées par le fabricant (angle d'inclinaison maximum). Choisissez *Personnalisé / Autre* si votre modèle n'est pas listé ou si vous préférez mesurer vous-même.\n\n⚠ Seule la Brustor B200 XL a été testée de bout en bout sur du vrai matériel. Les autres préréglages proviennent des fiches techniques publiées par les fabricants, mais l'algorithme a été calibré sur une pergola à lames étanches similaire à la B200 XL — les modèles non-Brustor peuvent se comporter légèrement différemment avant ajustement fin. Si vous repérez une erreur ou souhaitez ajuster une valeur, merci d'ouvrir un ticket sur https://github.com/qelanhari/ha-pergola/issues avec votre modèle et la correction.",
           "face_azimuth": "Utilisez l'appli boussole de votre téléphone : placez-vous sous la pergola en regardant vers l'extérieur et relevez le cap. 0°=N, 90°=E, 180°=S, 270°=O.",
           "advanced": "Révèle la géométrie des lames, la calibration été/hiver et la fenêtre d'exposition solaire. La plupart des utilisateurs n'y touchent pas."
         }
@@ -132,13 +134,15 @@
   "options": {
     "step": {
       "geometry_basic": {
-        "title": "Direction d'orientation de la pergola",
-        "description": "Modifiez le cap si besoin, ou cochez **Afficher les paramètres avancés** pour exposer la géométrie des lames et la fenêtre d'exposition solaire.",
+        "title": "Modèle et direction d'orientation de la pergola",
+        "description": "Modifiez le modèle ou le cap si besoin, ou cochez **Afficher les paramètres avancés** pour exposer la géométrie des lames et la fenêtre d'exposition solaire.",
         "data": {
+          "pergola_model": "Modèle de pergola",
           "face_azimuth": "Direction d'orientation de la pergola (degrés)",
           "advanced": "Afficher les paramètres avancés"
         },
         "data_description": {
+          "pergola_model": "Choisir un modèle applique les spécifications publiées par le fabricant par-dessus vos réglages actuels. ⚠ Seule la Brustor B200 XL est validée de bout en bout ; merci de signaler les erreurs sur https://github.com/qelanhari/ha-pergola/issues.",
           "face_azimuth": "0°=N, 90°=E, 180°=S, 270°=O. Utilisez l'appli boussole de votre téléphone, placé sous la pergola.",
           "advanced": "Révèle la géométrie des lames, la calibration été/hiver et la fenêtre d'exposition solaire."
         }

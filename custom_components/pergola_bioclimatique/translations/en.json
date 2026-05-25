@@ -28,13 +28,15 @@
         }
       },
       "geometry": {
-        "title": "Which way does your pergola face?",
-        "description": "Stand under the pergola facing outward (the direction you want shade from) and read the bearing from your phone's compass app. That's your facing direction.\n\nLeave everything else at its default — the algorithm is pre-tuned for typical waterproof louver pergolas. Tick **Show advanced settings** only if you want to fine-tune the geometry yourself.",
+        "title": "Which pergola do you have, and which way does it face?",
+        "description": "Pick your pergola model from the list if it's there — published specs are filled in automatically. Then point your phone's compass app outward from under the pergola and enter the bearing.\n\nLeave everything else at its default — the algorithm is pre-tuned for typical waterproof louver pergolas. Tick **Show advanced settings** only if you want to fine-tune the geometry yourself.",
         "data": {
+          "pergola_model": "Pergola model",
           "face_azimuth": "Pergola facing direction (degrees)",
           "advanced": "Show advanced settings"
         },
         "data_description": {
+          "pergola_model": "Pick your pergola model to auto-fill the manufacturer's published specs (blade rotation angle). Pick *Custom / Other* if your model isn't listed or you'd rather measure yourself.\n\n⚠ Only the Brustor B200 XL has been tested end-to-end on real hardware. Every other preset is sourced from the manufacturer's published spec sheet, but the algorithm itself was tuned for waterproof louvers similar to the B200 XL — non-Brustor models may behave slightly off until fine-tuned. If you spot an error or want a value adjusted, please open an issue at https://github.com/qelanhari/ha-pergola/issues with your model and the correction.",
           "face_azimuth": "Use your phone's compass app: stand under the pergola looking outward and read the bearing. 0°=N, 90°=E, 180°=S, 270°=W.",
           "advanced": "Reveals the blade geometry, summer/winter calibration, and sun exposure window. Most users don't need to touch these."
         }
@@ -132,13 +134,15 @@
   "options": {
     "step": {
       "geometry_basic": {
-        "title": "Pergola facing direction",
-        "description": "Change the bearing if needed, or tick **Show advanced settings** to expose blade geometry and the sun exposure window.",
+        "title": "Pergola model and facing direction",
+        "description": "Change the model or bearing if needed, or tick **Show advanced settings** to expose blade geometry and the sun exposure window.",
         "data": {
+          "pergola_model": "Pergola model",
           "face_azimuth": "Pergola facing direction (degrees)",
           "advanced": "Show advanced settings"
         },
         "data_description": {
+          "pergola_model": "Picking a model overlays the manufacturer's published specs on top of your current settings. ⚠ Only the Brustor B200 XL is end-to-end validated; please report issues at https://github.com/qelanhari/ha-pergola/issues.",
           "face_azimuth": "0°=N, 90°=E, 180°=S, 270°=W. Use your phone's compass app while standing under the pergola.",
           "advanced": "Reveals blade geometry, summer/winter calibration, and sun exposure window."
         }

@@ -19,6 +19,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
 )
 
 # Well-known Sun integration entity IDs
@@ -37,6 +40,7 @@ from .const import (
     CONF_COVER_ENTITY,
     CONF_DEADBAND,
     CONF_FACE_AZIMUTH,
+    CONF_PERGOLA_MODEL,
     CONF_HUMIDITY_ENTITY,
     CONF_HUMIDITY_MAX,
     CONF_HYSTERESIS_DURATION,
@@ -70,6 +74,7 @@ from .const import (
     DEFAULT_CLOUDY_TARGET,
     DEFAULT_DEADBAND,
     DEFAULT_FACE_AZIMUTH,
+    DEFAULT_PERGOLA_MODEL,
     DEFAULT_HUMIDITY_MAX,
     DEFAULT_HYSTERESIS_DURATION,
     DEFAULT_LUX_AZ_MAX,
@@ -92,6 +97,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
 )
+from .presets import get_preset_values, model_choices
 
 
 # Geometry fields that are exposed in the advanced sub-step (everything
@@ -234,10 +240,19 @@ def _entity_schema(sun_defaults: dict[str, str] | None = None) -> vol.Schema:
 
 
 def _geometry_basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Step 2 (basic): just face_azimuth + advanced toggle."""
+    """Step 2 (basic): pergola model dropdown + face_azimuth + advanced toggle."""
     d = defaults or {}
     return vol.Schema(
         {
+            vol.Required(
+                CONF_PERGOLA_MODEL,
+                default=d.get(CONF_PERGOLA_MODEL, DEFAULT_PERGOLA_MODEL),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=model_choices(),
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(
                 CONF_FACE_AZIMUTH,
                 default=d.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
@@ -597,19 +612,29 @@ class PergolaBioclimatiqueConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_geometry(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
-        """Step 2 (basic): face azimuth + advanced toggle.
+        """Step 2 (basic): pergola model + face azimuth + advanced toggle.
 
         With advanced off (default), fill every other geometry field with its
-        default value derived from face_azimuth — stored entry is identical to
-        what the legacy flow produced when the user left every field at default.
+        default value derived from face_azimuth, then overlay any preset
+        values from the chosen pergola model. Stored entry is identical to
+        what the legacy flow produced when the user left every field at
+        default AND picked "Custom / Other".
         """
         if user_input is not None:
             wants_advanced = user_input.pop(CONF_ADVANCED, False)
             self._data.update(user_input)
-            if wants_advanced:
-                return await self.async_step_geometry_advanced()
             face_az = self._data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+            model_id = self._data.get(CONF_PERGOLA_MODEL, DEFAULT_PERGOLA_MODEL)
+            preset_values = get_preset_values(model_id)
+            if wants_advanced:
+                # Stash preset values so the advanced form pre-fills them as
+                # defaults the user can review and edit.
+                self._data.update(preset_values)
+                return await self.async_step_geometry_advanced()
+            # Apply geometry defaults first (face-dependent), then overlay the
+            # preset's spec-sheet values so the model's published numbers win.
             self._data.update(_geometry_defaults(face_az))
+            self._data.update(preset_values)
             return await self.async_step_operation()
 
         return self.async_show_form(
@@ -720,13 +745,20 @@ class PergolaBioclimatiqueOptionsFlow(OptionsFlowWithConfigEntry):
         if user_input is not None:
             wants_advanced = user_input.pop(CONF_ADVANCED, False)
             self._options.update(user_input)
-            if wants_advanced:
-                return await self.async_step_geometry_advanced()
             face_az = self._options.get(
                 CONF_FACE_AZIMUTH,
                 self.config_entry.data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
             )
+            model_id = self._options.get(
+                CONF_PERGOLA_MODEL,
+                self.config_entry.data.get(CONF_PERGOLA_MODEL, DEFAULT_PERGOLA_MODEL),
+            )
+            preset_values = get_preset_values(model_id)
+            if wants_advanced:
+                self._options.update(preset_values)
+                return await self.async_step_geometry_advanced()
             self._options.update(_geometry_defaults(face_az))
+            self._options.update(preset_values)
             return await self.async_step_operation()
 
         return self.async_show_form(

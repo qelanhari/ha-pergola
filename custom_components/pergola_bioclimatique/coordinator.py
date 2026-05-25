@@ -115,6 +115,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._first_run: bool = True
         self._mode_just_changed: bool = False
         self._sunny_just_changed: bool = False
+        # Last position the integration successfully commanded; survives
+        # restarts via Store. Used to skip the morning calibration cycle
+        # when the cover hasn't drifted overnight.
+        self._last_known_position: float | None = None
 
         # Computed values exposed to sensors
         self._profile_angle: float = 0.0
@@ -268,6 +272,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._pergola_ready = data.get("pergola_ready", False)
             self._descent_calibrated = data.get("descent_calibrated", False)
             self._consecutive_failures = data.get("consecutive_failures", 0)
+            self._last_known_position = data.get("last_known_position")
             # Do NOT restore sunny_changed_at — after restart, the first
             # cloud detection reading should decide immediately without
             # waiting for the hysteresis timer to expire.
@@ -284,6 +289,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "pergola_ready": self._pergola_ready,
             "descent_calibrated": self._descent_calibrated,
             "consecutive_failures": self._consecutive_failures,
+            "last_known_position": self._last_known_position,
         })
 
     # --- Mode control (called from SelectEntity) ---
@@ -327,6 +333,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ok = abs(actual - target) <= tolerance
         if ok:
             self._consecutive_failures = 0
+            self._last_known_position = float(target)
             _LOGGER.debug(
                 "Verify OK: target=%d%%, actual=%.0f%%", target, actual
             )
@@ -353,6 +360,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ok = pos < 5
         if ok:
             self._consecutive_failures = 0
+            self._last_known_position = 0.0
             _LOGGER.debug("Close verify OK: position=%.0f%%", pos)
         else:
             self._consecutive_failures += 1
@@ -747,7 +755,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.async_create_task(self._async_calibrate())
 
     async def _async_calibrate(self) -> None:
-        """Morning calibration: close fully, verify, unlock."""
+        """Morning calibration: close fully, verify, unlock.
+
+        Skips the close-and-verify if the current cover position still
+        matches `_last_known_position` (the last value the integration
+        successfully commanded). In that case no drift could have
+        happened overnight, so we mark today as calibrated without
+        moving — avoids the useless full-close cycle when the evening
+        target equals the morning target.
+        """
         lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
         if lock_entity:
             lock_origin = self._get_state(lock_entity)
@@ -762,14 +778,36 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             today = date.today()
             if self._last_calibration != today:
-                _LOGGER.info("Pergola: starting morning calibration")
-                success = await self._async_close_and_verify(cover_id)
-                if not success:
-                    _LOGGER.warning("Pergola: morning calibration failed")
-                    return
+                current_pos = self._get_cover_tilt()
+                last_known = self._last_known_position
+                deadband = self._cfg(CONF_DEADBAND, 2)
 
-                self._last_calibration = today
-                _LOGGER.info("Pergola: calibration successful")
+                if (
+                    last_known is not None
+                    and abs(current_pos - last_known) <= deadband
+                ):
+                    _LOGGER.info(
+                        "Pergola: skip morning calibration — position "
+                        "%d%% matches last known %d%% (no drift)",
+                        int(current_pos), int(last_known),
+                    )
+                    self._last_calibration = today
+                else:
+                    _LOGGER.info(
+                        "Pergola: starting morning calibration "
+                        "(position=%d%%, last known=%s)",
+                        int(current_pos),
+                        f"{int(last_known)}%" if last_known is not None
+                        else "unknown",
+                    )
+                    success = await self._async_close_and_verify(cover_id)
+                    if not success:
+                        _LOGGER.warning(
+                            "Pergola: morning calibration failed"
+                        )
+                        return
+                    self._last_calibration = today
+                    _LOGGER.info("Pergola: calibration successful")
 
             self._pergola_ready = True
             self._descent_calibrated = False

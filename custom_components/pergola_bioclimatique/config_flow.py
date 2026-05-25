@@ -13,6 +13,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -23,6 +24,11 @@ from homeassistant.helpers.selector import (
 # Well-known Sun integration entity IDs
 SUN_AZIMUTH_ENTITY = "sensor.sun_solar_azimuth"
 SUN_ELEVATION_ENTITY = "sensor.sun_solar_elevation"
+
+# Transient UI marker (never persisted) — when the user ticks this in a basic
+# form, the flow transitions to the matching *_advanced sub-step instead of
+# silently writing defaults.
+CONF_ADVANCED = "advanced"
 
 from .const import (
     CONF_BLADE_PITCH_RATIO,
@@ -88,6 +94,96 @@ from .const import (
 )
 
 
+# Geometry fields that are exposed in the advanced sub-step (everything
+# except face_azimuth, which is the only basic field).
+_GEOMETRY_ADVANCED_FIELDS: tuple[str, ...] = (
+    CONF_MAX_OPENING_ANGLE,
+    CONF_CALIBRATION_OFFSET,
+    CONF_BLADE_PITCH_RATIO,
+    CONF_FLIP_PROFILE_THRESHOLD,
+    CONF_SUMMER_BLADE_OFFSET,
+    CONF_PHASE_A_INTERCEPT,
+    CONF_SUN_AZ_MIN,
+    CONF_SUN_AZ_MAX,
+)
+
+# Cloud detection fields exposed in the advanced sub-step (everything except
+# pv_max_watts, the only basic field).
+_CLOUD_ADVANCED_FIELDS: tuple[str, ...] = (
+    CONF_PV_PANEL_AZIMUTH,
+    CONF_PV_PANEL_TILT,
+    CONF_PV_SUNNY_RATIO,
+    CONF_PV_SMOOTH_ALPHA,
+    CONF_HYSTERESIS_DURATION,
+    CONF_LUX_SUNNY_RATIO,
+    CONF_PV_OBSERVABLE_COS,
+    CONF_LUX_AZ_MIN,
+    CONF_LUX_AZ_MAX,
+)
+
+
+def _geometry_defaults(face_azimuth: float) -> dict[str, Any]:
+    """Return the full default dict for the geometry step.
+
+    `sun_az_min` / `sun_az_max` are derived from `face_azimuth` to preserve
+    historical behavior (window = face ± 90°).
+    """
+    return {
+        CONF_MAX_OPENING_ANGLE: DEFAULT_MAX_OPENING_ANGLE,
+        CONF_CALIBRATION_OFFSET: DEFAULT_CALIBRATION_OFFSET,
+        CONF_BLADE_PITCH_RATIO: DEFAULT_BLADE_PITCH_RATIO,
+        CONF_FLIP_PROFILE_THRESHOLD: DEFAULT_FLIP_PROFILE_THRESHOLD,
+        CONF_SUMMER_BLADE_OFFSET: DEFAULT_SUMMER_BLADE_OFFSET,
+        CONF_PHASE_A_INTERCEPT: DEFAULT_PHASE_A_INTERCEPT,
+        CONF_SUN_AZ_MIN: face_azimuth - DEFAULT_SUN_AZ_HALF_WIDTH,
+        CONF_SUN_AZ_MAX: face_azimuth + DEFAULT_SUN_AZ_HALF_WIDTH,
+    }
+
+
+def _cloud_defaults(face_azimuth: float) -> dict[str, Any]:
+    """Return the full default dict for the cloud-detection step.
+
+    `pv_panel_azimuth` defaults to `face_azimuth` (most installs have the PV
+    panels on the same roof slope as the pergola).
+    """
+    return {
+        CONF_PV_PANEL_AZIMUTH: face_azimuth,
+        CONF_PV_PANEL_TILT: DEFAULT_PV_PANEL_TILT,
+        CONF_PV_SUNNY_RATIO: DEFAULT_PV_SUNNY_RATIO,
+        CONF_PV_SMOOTH_ALPHA: DEFAULT_PV_SMOOTH_ALPHA,
+        CONF_HYSTERESIS_DURATION: DEFAULT_HYSTERESIS_DURATION,
+        CONF_LUX_SUNNY_RATIO: DEFAULT_LUX_SUNNY_RATIO,
+        CONF_PV_OBSERVABLE_COS: DEFAULT_PV_OBSERVABLE_COS,
+        CONF_LUX_AZ_MIN: DEFAULT_LUX_AZ_MIN,
+        CONF_LUX_AZ_MAX: DEFAULT_LUX_AZ_MAX,
+    }
+
+
+def _geometry_has_non_defaults(values: dict[str, Any]) -> bool:
+    """True if any geometry advanced field differs from its default.
+
+    Used by the Options flow to decide whether to open in basic or advanced
+    view. `sun_az_min` / `sun_az_max` are compared against the value derived
+    from the current `face_azimuth`, not against a hard-coded default.
+    """
+    face_az = values.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+    defaults = _geometry_defaults(face_az)
+    for key in _GEOMETRY_ADVANCED_FIELDS:
+        if key in values and values[key] != defaults[key]:
+            return True
+    return False
+
+
+def _cloud_has_non_defaults(values: dict[str, Any]) -> bool:
+    """True if any cloud advanced field differs from its default."""
+    face_az = values.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+    defaults = _cloud_defaults(face_az)
+    for key in _CLOUD_ADVANCED_FIELDS:
+        if key in values and values[key] != defaults[key]:
+            return True
+    return False
+
+
 def _entity_schema(sun_defaults: dict[str, str] | None = None) -> vol.Schema:
     """Step 1: Entity selection. Auto-fills sun entities if detected."""
     sd = sun_defaults or {}
@@ -137,8 +233,8 @@ def _entity_schema(sun_defaults: dict[str, str] | None = None) -> vol.Schema:
     return vol.Schema(schema)
 
 
-def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Step 2: Geometry parameters."""
+def _geometry_basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Step 2 (basic): just face_azimuth + advanced toggle."""
     d = defaults or {}
     return vol.Schema(
         {
@@ -146,7 +242,33 @@ def _geometry_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_FACE_AZIMUTH,
                 default=d.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
             ): NumberSelector(
-                NumberSelectorConfig(min=0, max=360, step=1, mode=NumberSelectorMode.BOX)
+                NumberSelectorConfig(
+                    min=0, max=360, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_ADVANCED,
+                default=d.get(CONF_ADVANCED, False),
+            ): BooleanSelector(),
+        }
+    )
+
+
+def _geometry_advanced_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Step 2 (advanced): every geometry knob. face_azimuth is included here too
+    so the user can fine-tune the bearing alongside the rest."""
+    d = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_FACE_AZIMUTH,
+                default=d.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=360, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="°",
+                )
             ),
             vol.Required(
                 CONF_MAX_OPENING_ANGLE,
@@ -306,8 +428,30 @@ def _operation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     )
 
 
-def _cloud_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Step 4: Cloud detection parameters."""
+def _cloud_basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Step 4 (basic): just pv_max_watts + advanced toggle."""
+    d = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_PV_MAX_WATTS,
+                default=d.get(CONF_PV_MAX_WATTS, DEFAULT_PV_MAX_WATTS),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=100, max=20000, step=100, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="W",
+                )
+            ),
+            vol.Required(
+                CONF_ADVANCED,
+                default=d.get(CONF_ADVANCED, False),
+            ): BooleanSelector(),
+        }
+    )
+
+
+def _cloud_advanced_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Step 4 (advanced): every cloud-detection knob."""
     d = defaults or {}
     return vol.Schema(
         {
@@ -453,14 +597,37 @@ class PergolaBioclimatiqueConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_geometry(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
-        """Step 2: Geometry parameters."""
+        """Step 2 (basic): face azimuth + advanced toggle.
+
+        With advanced off (default), fill every other geometry field with its
+        default value derived from face_azimuth — stored entry is identical to
+        what the legacy flow produced when the user left every field at default.
+        """
+        if user_input is not None:
+            wants_advanced = user_input.pop(CONF_ADVANCED, False)
+            self._data.update(user_input)
+            if wants_advanced:
+                return await self.async_step_geometry_advanced()
+            face_az = self._data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+            self._data.update(_geometry_defaults(face_az))
+            return await self.async_step_operation()
+
+        return self.async_show_form(
+            step_id="geometry",
+            data_schema=_geometry_basic_schema(),
+        )
+
+    async def async_step_geometry_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        """Step 2 (advanced): every geometry knob exposed."""
         if user_input is not None:
             self._data.update(user_input)
             return await self.async_step_operation()
 
         return self.async_show_form(
-            step_id="geometry",
-            data_schema=_geometry_schema(),
+            step_id="geometry_advanced",
+            data_schema=_geometry_advanced_schema(self._data),
         )
 
     async def async_step_operation(
@@ -484,14 +651,32 @@ class PergolaBioclimatiqueConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_cloud_detection(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
-        """Step 4: Cloud detection parameters."""
+        """Step 4 (basic): pv_max_watts + advanced toggle."""
+        if user_input is not None:
+            wants_advanced = user_input.pop(CONF_ADVANCED, False)
+            self._data.update(user_input)
+            if wants_advanced:
+                return await self.async_step_cloud_detection_advanced()
+            face_az = self._data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+            self._data.update(_cloud_defaults(face_az))
+            return self._create_entry()
+
+        return self.async_show_form(
+            step_id="cloud_detection",
+            data_schema=_cloud_basic_schema(),
+        )
+
+    async def async_step_cloud_detection_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        """Step 4 (advanced): every cloud-detection knob."""
         if user_input is not None:
             self._data.update(user_input)
             return self._create_entry()
 
         return self.async_show_form(
-            step_id="cloud_detection",
-            data_schema=_cloud_schema(),
+            step_id="cloud_detection_advanced",
+            data_schema=_cloud_advanced_schema(self._data),
         )
 
     def _create_entry(self) -> Any:
@@ -506,24 +691,59 @@ class PergolaBioclimatiqueConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class PergolaBioclimatiqueOptionsFlow(OptionsFlowWithConfigEntry):
-    """Handle options flow for reconfiguring parameters at runtime."""
+    """Handle options flow for reconfiguring parameters at runtime.
+
+    Existing entries that already contain non-default values are opened
+    straight in the advanced view for that step, so the user's current setup
+    is visible and editable instead of being silently re-defaulted.
+    """
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         super().__init__(config_entry)
         self._options: dict[str, Any] = dict(config_entry.options)
 
+    def _current(self) -> dict[str, Any]:
+        """Merged data+options snapshot for default population."""
+        return {**self.config_entry.data, **self.config_entry.options, **self._options}
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
-        """Start options flow with geometry step."""
+        """Geometry step — basic by default; advanced if any field was customized."""
+        if _geometry_has_non_defaults(self._current()):
+            return await self.async_step_geometry_advanced()
+        return await self.async_step_geometry_basic(user_input)
+
+    async def async_step_geometry_basic(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        if user_input is not None:
+            wants_advanced = user_input.pop(CONF_ADVANCED, False)
+            self._options.update(user_input)
+            if wants_advanced:
+                return await self.async_step_geometry_advanced()
+            face_az = self._options.get(
+                CONF_FACE_AZIMUTH,
+                self.config_entry.data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
+            )
+            self._options.update(_geometry_defaults(face_az))
+            return await self.async_step_operation()
+
+        return self.async_show_form(
+            step_id="geometry_basic",
+            data_schema=_geometry_basic_schema(self._current()),
+        )
+
+    async def async_step_geometry_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
         if user_input is not None:
             self._options.update(user_input)
             return await self.async_step_operation()
 
-        current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
-            step_id="init",
-            data_schema=_geometry_schema(current),
+            step_id="geometry_advanced",
+            data_schema=_geometry_advanced_schema(self._current()),
         )
 
     async def async_step_operation(
@@ -536,23 +756,43 @@ class PergolaBioclimatiqueOptionsFlow(OptionsFlowWithConfigEntry):
             ) or self.config_entry.data.get(CONF_LIGHT_SENSOR_ENTITY)
             if not has_cloud_sensor:
                 return self.async_create_entry(title="", data=self._options)
-            return await self.async_step_cloud_detection()
+            if _cloud_has_non_defaults(self._current()):
+                return await self.async_step_cloud_detection_advanced()
+            return await self.async_step_cloud_detection_basic()
 
-        current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
             step_id="operation",
-            data_schema=_operation_schema(current),
+            data_schema=_operation_schema(self._current()),
         )
 
-    async def async_step_cloud_detection(
+    async def async_step_cloud_detection_basic(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        if user_input is not None:
+            wants_advanced = user_input.pop(CONF_ADVANCED, False)
+            self._options.update(user_input)
+            if wants_advanced:
+                return await self.async_step_cloud_detection_advanced()
+            face_az = self._options.get(
+                CONF_FACE_AZIMUTH,
+                self.config_entry.data.get(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH),
+            )
+            self._options.update(_cloud_defaults(face_az))
+            return self.async_create_entry(title="", data=self._options)
+
+        return self.async_show_form(
+            step_id="cloud_detection_basic",
+            data_schema=_cloud_basic_schema(self._current()),
+        )
+
+    async def async_step_cloud_detection_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
         if user_input is not None:
             self._options.update(user_input)
             return self.async_create_entry(title="", data=self._options)
 
-        current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
-            step_id="cloud_detection",
-            data_schema=_cloud_schema(current),
+            step_id="cloud_detection_advanced",
+            data_schema=_cloud_advanced_schema(self._current()),
         )

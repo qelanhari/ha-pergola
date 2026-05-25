@@ -5,181 +5,230 @@
     },
     "step": {
       "user": {
-        "title": "Sélection des entités",
-        "description": "Sélectionnez les entités pour votre pergola bioclimatique.\n\nStatut de l'intégration Sun : **{sun_status}**",
+        "title": "Choisissez la pergola et ses capteurs",
+        "description": "Sélectionnez l'entité cover qui pilote votre pergola, ainsi que les capteurs optionnels. L'intégration détecte automatiquement l'intégration Sun de Home Assistant.\n\nStatut de l'intégration Sun : **{sun_status}**",
         "data": {
           "name": "Nom",
           "cover_entity": "Entité cover de la pergola",
           "sun_azimuth_entity": "Capteur d'azimut solaire",
           "sun_elevation_entity": "Capteur d'élévation solaire",
-          "pv_power_entity": "Capteur de puissance PV (détection nuage)",
-          "light_sensor_entity": "Capteur de luminosité (détection nuage alternative)",
+          "pv_power_entity": "Capteur de puissance solaire (PV)",
+          "light_sensor_entity": "Capteur de luminosité extérieure",
           "humidity_entity": "Capteur d'humidité",
           "priority_lock_entity": "Capteur de verrouillage sécurité",
           "priority_lock_timer_entity": "Capteur timer de verrouillage"
         },
         "data_description": {
-          "pv_power_entity": "Optionnel. Au moins un capteur PV ou luminosité est recommandé pour la détection nuage.",
-          "light_sensor_entity": "Optionnel. Utilisé comme alternative au PV pour la détection nuage.",
-          "humidity_entity": "Optionnel. Bloque l'automatisation quand l'humidité dépasse le seuil.",
-          "priority_lock_entity": "Optionnel. Surveille les verrous de sécurité (pluie, température, sécurité).",
-          "priority_lock_timer_entity": "Optionnel. Durée du verrou de sécurité."
+          "cover_entity": "L'entité cover Home Assistant qui incline les lames de votre pergola.",
+          "pv_power_entity": "Optionnel. Permet à la pergola de détecter les passages nuageux et d'arrêter de suivre le soleil. PV ou capteur de luminosité, les deux fonctionnent.",
+          "light_sensor_entity": "Optionnel. Alternative au capteur PV pour la détection ensoleillé/nuageux.",
+          "humidity_entity": "Optionnel. Met l'automatisation en pause quand l'humidité est trop élevée (orage, pluie).",
+          "priority_lock_entity": "Optionnel. Si vous avez déjà des automatisations de sécurité (pluie/vent/température), pointez vers le capteur qui indique quel verrou est actif.",
+          "priority_lock_timer_entity": "Optionnel. Va avec le verrou de sécurité — durée du verrou actif."
         }
       },
       "geometry": {
-        "title": "Paramètres géométriques",
-        "description": "Configurez la géométrie physique de votre pergola.",
+        "title": "Vers où est orientée votre pergola ?",
+        "description": "Placez-vous sous la pergola en regardant vers l'extérieur (la direction d'où vient le soleil à protéger) et relevez le cap sur l'appli boussole de votre téléphone. C'est votre direction d'orientation.\n\nLaissez tous les autres paramètres par défaut — l'algorithme est pré-réglé pour les pergolas étanches à lames standard. Cochez **Afficher les paramètres avancés** seulement si vous voulez régler la géométrie vous-même.",
         "data": {
-          "face_azimuth": "Azimut de la pergola",
-          "max_opening_angle": "Angle d'ouverture maximum",
-          "calibration_offset": "Offset de calibration",
-          "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "flip_profile_threshold": "Angle de profil de bascule",
-          "summer_blade_offset": "Décalage d'angle été (phase B seule)",
-          "phase_a_intercept": "Cible de départ phase A (rampe linéaire)",
-          "sun_az_min": "Fenêtre d'exposition — azimut de début",
-          "sun_az_max": "Fenêtre d'exposition — azimut de fin"
+          "face_azimuth": "Direction d'orientation de la pergola (degrés)",
+          "advanced": "Afficher les paramètres avancés"
         },
         "data_description": {
-          "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
-          "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
-          "calibration_offset": "Correction permanente de l'angle des lames.",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
-          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
-          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à la phase B de l'algorithme été (post-bascule, additif au calibration_offset). N'affecte ni la phase A ni l'hiver. Valeur positive = plus fermé sur la face B après la bascule.",
-          "phase_a_intercept": "Cible en pourcentage à profile_angle=0 pour la rampe linéaire de phase A. La phase A interpole linéairement de cette valeur jusqu'à 100 % au flip_profile_threshold. Calibrer en observant sensor.pergola_profile_angle à un moment où vous voyez la fermeture minimale qui bloque les rayons.",
-          "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
-          "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
+          "face_azimuth": "Utilisez l'appli boussole de votre téléphone : placez-vous sous la pergola en regardant vers l'extérieur et relevez le cap. 0°=N, 90°=E, 180°=S, 270°=O.",
+          "advanced": "Révèle la géométrie des lames, la calibration été/hiver et la fenêtre d'exposition solaire. La plupart des utilisateurs n'y touchent pas."
+        }
+      },
+      "geometry_advanced": {
+        "title": "Paramètres géométriques avancés",
+        "description": "Réglez finement la physique des lames et la fenêtre d'exposition solaire. Les valeurs par défaut correspondent à une pergola étanche à lames standard — ne modifiez une valeur que si vous savez ce que vous mesurez.",
+        "data": {
+          "face_azimuth": "Direction d'orientation de la pergola (degrés)",
+          "max_opening_angle": "Plage des lames — inclinaison maximum",
+          "calibration_offset": "Offset de calibration",
+          "blade_pitch_ratio": "Taux de recouvrement des lames",
+          "flip_profile_threshold": "Angle solaire de bascule",
+          "summer_blade_offset": "Réglage fin été",
+          "phase_a_intercept": "Fermeture de départ du matin",
+          "sun_az_min": "Exposition commence à l'azimut",
+          "sun_az_max": "Exposition se termine à l'azimut"
+        },
+        "data_description": {
+          "face_azimuth": "0°=N, 90°=E, 180°=S, 270°=O. Utilisez l'appli boussole de votre téléphone, placé sous la pergola en regardant vers l'extérieur.",
+          "max_opening_angle": "Inclinaison mécanique des lames (en degrés) qui correspond à 100 % sur l'entité cover. La plupart des fabricants la donnent dans la fiche technique — laissez 135° si vous ne l'avez pas.",
+          "calibration_offset": "Correction permanente ajoutée à l'angle des lames calculé. Augmenter (moins négatif) si les lames se ferment trop ; diminuer (plus négatif) si pas assez. Observez la pergola un matin de beau temps et ajustez.",
+          "blade_pitch_ratio": "Recouvrement des lames quand elles sont fermées : entraxe des lames (centre à centre) divisé par leur largeur. ≈0,92 pour les pergolas étanches standard. À ne modifier que si vous avez mesuré.",
+          "flip_profile_threshold": "Angle de profil solaire (°) à partir duquel les lames basculent d'un côté à l'autre. À calibrer en observant `sensor.pergola_profile_angle` — la valeur à laquelle le premier rayon commence à passer entre les lames fermées au max est votre seuil.",
+          "summer_blade_offset": "Ajuste l'algorithme été après la bascule (phase B) uniquement — n'affecte ni l'hiver ni le matin. Valeurs positives pour fermer plus tôt l'après-midi.",
+          "phase_a_intercept": "Où commence la rampe du matin (% de fermeture quand le soleil arrive). La pergola interpole linéairement de cette valeur jusqu'à 100 % à l'angle de bascule. Augmentez pour plus d'ombre tôt ; diminuez pour ouvrir davantage.",
+          "sun_az_min": "En dessous de cet azimut solaire, le bâtiment lui-même fait de l'ombre à la pergola (mur Est le matin) et l'algorithme repasse en position nuageux/standby. Défaut = direction d'orientation − 90°.",
+          "sun_az_max": "Au-dessus de cet azimut solaire, le bâtiment fait de l'ombre à la pergola (mur Ouest l'après-midi) et l'algorithme repasse en position nuageux/standby. Défaut = direction d'orientation + 90°."
         }
       },
       "operation": {
-        "title": "Paramètres de fonctionnement",
-        "description": "Configurez le fonctionnement de la pergola.",
+        "title": "À quelle fréquence l'algorithme tourne-t-il ?",
+        "description": "Les valeurs par défaut sont raisonnables — la plupart des utilisateurs n'ajustent que la position nuageux/standby ou le seuil d'humidité.",
         "data": {
           "update_interval": "Intervalle de mise à jour",
           "step_size": "Pas de quantisation",
           "deadband": "Zone morte",
-          "cloudy_target": "Position nuageux/standby",
+          "cloudy_target": "Position nuageux / standby",
           "min_useful_percent": "Position minimum utile",
-          "humidity_max": "Seuil d'humidité maximum",
+          "humidity_max": "Humidité maximum",
           "min_elevation": "Élévation solaire minimum"
         },
         "data_description": {
-          "update_interval": "Fréquence d'exécution de la boucle de contrôle.",
-          "step_size": "La position est arrondie aux multiples de cette valeur pour réduire l'usure mécanique.",
-          "deadband": "Changement minimum de position requis pour déclencher un mouvement.",
-          "cloudy_target": "Position par défaut quand il fait nuageux ou en standby.",
-          "min_useful_percent": "En dessous de cette position, passe en standby.",
-          "humidity_max": "L'automatisation est bloquée quand l'humidité dépasse cette valeur.",
-          "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."
+          "update_interval": "À quelle fréquence la boucle de contrôle vérifie le soleil et ajuste la pergola.",
+          "step_size": "La position est arrondie aux multiples de cette valeur — réduit l'usure mécanique.",
+          "deadband": "Changement minimum requis pour déclencher un mouvement (les petits ajustements sont ignorés).",
+          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Défaut 60 % : un bon compromis entre ombre et vue.",
+          "min_useful_percent": "En dessous de cette cible, la pergola passe en position nuageux/standby — évite les micro-mouvements au lever du jour.",
+          "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause (utile quand la pergola mouillée ne doit pas bouger).",
+          "min_elevation": "En dessous de cette élévation solaire (aube/crépuscule), la boucle de contrôle et la calibration matinale restent inactives."
         }
       },
       "cloud_detection": {
-        "title": "Paramètres de détection nuage",
-        "description": "Configurez la détection soleil/nuage via votre capteur de puissance ou luminosité.",
+        "title": "Détection nuage",
+        "description": "Indiquez la puissance crête de votre onduleur, l'intégration s'occupe du reste. Cochez **Afficher les paramètres avancés** seulement pour régler finement la géométrie des capteurs et l'hystérésis.",
         "data": {
-          "pv_max_watts": "Puissance PV maximum",
-          "pv_panel_azimuth": "Azimut des panneaux PV",
+          "pv_max_watts": "Puissance crête solaire (PV)",
+          "advanced": "Afficher les paramètres avancés"
+        },
+        "data_description": {
+          "pv_max_watts": "Puissance maximum que votre système PV produit en conditions idéales (la valeur de plaque de l'onduleur). L'intégration la pondère automatiquement selon la position du soleil.",
+          "advanced": "Révèle l'orientation des panneaux, les seuils d'état ensoleillé, le lissage, l'hystérésis et les réglages du capteur lux."
+        }
+      },
+      "cloud_detection_advanced": {
+        "title": "Paramètres avancés de détection nuage",
+        "description": "Réglez finement la géométrie des capteurs et les seuils de décision. Les valeurs par défaut conviennent à la plupart des installations — ne modifiez une valeur que si votre installation est inhabituelle.",
+        "data": {
+          "pv_max_watts": "Puissance crête solaire (PV)",
+          "pv_panel_azimuth": "Direction d'orientation des panneaux PV",
           "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
           "hysteresis_duration": "Durée d'hystérésis",
-          "lux_sunny_ratio": "Seuil lux ensoleillé (× sin(élévation))",
+          "lux_sunny_ratio": "Seuil lux ensoleillé",
           "pv_observable_cos": "Seuil cosinus PV observable",
           "lux_az_min": "Lux observable : azimut min du soleil",
           "lux_az_max": "Lux observable : azimut max du soleil"
         },
         "data_description": {
-          "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'azimut de la pergola — à modifier seulement si les panneaux sont sur un autre pan de toit.",
-          "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
-          "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
-          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
-          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux.",
-          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation) = ensoleillé. À calibrer depuis une mesure de plein midi clair.",
-          "pv_observable_cos": "Le PV ne vote « ensoleillé » que si cos(angle d'incidence sur le panneau) dépasse ce seuil — évite les faux nuageux quand le panneau est trop hors-axe ou ombragé.",
-          "lux_az_min": "Azimut solaire (°) à partir duquel le capteur lux voit le soleil direct.",
-          "lux_az_max": "Azimut solaire (°) au-delà duquel le capteur lux ne voit plus le soleil direct."
+          "pv_max_watts": "Puissance maximum que votre système PV produit en conditions idéales.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'orientation de la pergola — à modifier seulement si les panneaux sont sur un autre pan de toit.",
+          "pv_panel_tilt": "Inclinaison des panneaux en degrés (0°=plat, 90°=vertical).",
+          "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé. Plus bas = plus souvent ensoleillé.",
+          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique récent. Plus élevé = plus réactif aux changements de nuage.",
+          "hysteresis_duration": "Temps minimum avant de basculer entre les états ensoleillé et nuageux — évite le scintillement quand les nuages sont épars.",
+          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation solaire) = ensoleillé. À calibrer depuis une mesure de plein midi clair.",
+          "pv_observable_cos": "Avancé — à laisser par défaut sauf si le panneau est monté de manière inhabituelle. Le PV ne vote « ensoleillé » que si cos(angle d'incidence) sur le panneau dépasse ce seuil ; évite les faux nuageux quand le panneau est trop hors-axe.",
+          "lux_az_min": "Avancé — azimut solaire à partir duquel le capteur lux voit le soleil direct.",
+          "lux_az_max": "Avancé — azimut solaire au-delà duquel le capteur lux ne voit plus le soleil direct."
         }
       }
     }
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Paramètres géométriques",
-        "description": "Modifiez les paramètres de géométrie.",
+      "geometry_basic": {
+        "title": "Direction d'orientation de la pergola",
+        "description": "Modifiez le cap si besoin, ou cochez **Afficher les paramètres avancés** pour exposer la géométrie des lames et la fenêtre d'exposition solaire.",
         "data": {
-          "face_azimuth": "Azimut de la pergola",
-          "max_opening_angle": "Angle d'ouverture maximum",
-          "calibration_offset": "Offset de calibration",
-          "blade_pitch_ratio": "Ratio entraxe / largeur de lame",
-          "flip_profile_threshold": "Angle de profil de bascule",
-          "summer_blade_offset": "Décalage d'angle été (phase B seule)",
-          "phase_a_intercept": "Cible de départ phase A (rampe linéaire)",
-          "sun_az_min": "Fenêtre d'exposition — azimut de début",
-          "sun_az_max": "Fenêtre d'exposition — azimut de fin"
+          "face_azimuth": "Direction d'orientation de la pergola (degrés)",
+          "advanced": "Afficher les paramètres avancés"
         },
         "data_description": {
-          "face_azimuth": "Direction vers laquelle la pergola fait face (0°=N, 90°=E, 180°=S, 270°=O).",
-          "max_opening_angle": "Angle d'inclinaison maximum des lames en degrés.",
-          "calibration_offset": "Correction permanente de l'angle des lames.",
-          "blade_pitch_ratio": "Ratio P/W entre l'entraxe des lames et leur largeur. Par défaut 0,92 pour une pergola étanche ; ajuster pour que la cible juste après bascule corresponde à ce qui bloque le mieux visuellement.",
-          "flip_profile_threshold": "Angle de profil (°) à partir duquel les lames basculent de la face A vers la face B. À calibrer en observant sensor.pergola_profile_angle au moment où le premier rayon commence à passer entre les lames fermées au max. Défaut 80° ; baisser si la bascule arrive trop tard, augmenter si trop tôt.",
-          "summer_blade_offset": "Décalage d'angle de lame (°) appliqué uniquement à la phase B de l'algorithme été (post-bascule, additif au calibration_offset). N'affecte ni la phase A ni l'hiver. Valeur positive = plus fermé sur la face B après la bascule.",
-          "phase_a_intercept": "Cible en pourcentage à profile_angle=0 pour la rampe linéaire de phase A. La phase A interpole linéairement de cette valeur jusqu'à 100 % au flip_profile_threshold. Calibrer en observant sensor.pergola_profile_angle à un moment où vous voyez la fermeture minimale qui bloque les rayons.",
-          "sun_az_min": "Azimut du soleil (°) à partir duquel la pergola commence à recevoir des rayons directs le matin. En dessous, le bâtiment lui-même fait de l'ombre à la zone protégée et l'algorithme repasse en position diffuse (cloudy_target). Défaut face_azimuth − 90° ; remonter si la pergola reste à l'ombre du mur Est un moment après le lever.",
-          "sun_az_max": "Azimut du soleil (°) au-delà duquel la pergola ne reçoit plus de rayons directs en fin d'après-midi. Au-delà, l'algorithme repasse en position diffuse. Défaut face_azimuth + 90° ; descendre si le mur Ouest fait de l'ombre à la zone protégée avant cet angle."
+          "face_azimuth": "0°=N, 90°=E, 180°=S, 270°=O. Utilisez l'appli boussole de votre téléphone, placé sous la pergola.",
+          "advanced": "Révèle la géométrie des lames, la calibration été/hiver et la fenêtre d'exposition solaire."
+        }
+      },
+      "geometry_advanced": {
+        "title": "Paramètres géométriques avancés",
+        "description": "Réglez finement la physique des lames et la fenêtre d'exposition solaire pour votre pergola.",
+        "data": {
+          "face_azimuth": "Direction d'orientation de la pergola (degrés)",
+          "max_opening_angle": "Plage des lames — inclinaison maximum",
+          "calibration_offset": "Offset de calibration",
+          "blade_pitch_ratio": "Taux de recouvrement des lames",
+          "flip_profile_threshold": "Angle solaire de bascule",
+          "summer_blade_offset": "Réglage fin été",
+          "phase_a_intercept": "Fermeture de départ du matin",
+          "sun_az_min": "Exposition commence à l'azimut",
+          "sun_az_max": "Exposition se termine à l'azimut"
+        },
+        "data_description": {
+          "face_azimuth": "0°=N, 90°=E, 180°=S, 270°=O.",
+          "max_opening_angle": "Inclinaison mécanique des lames (en degrés) qui correspond à 100 % sur l'entité cover.",
+          "calibration_offset": "Correction permanente ajoutée à l'angle des lames calculé. À ajuster d'après l'observation.",
+          "blade_pitch_ratio": "Entraxe des lames (centre à centre) divisé par leur largeur. ≈0,92 pour les pergolas étanches standard.",
+          "flip_profile_threshold": "Angle de profil solaire (°) à partir duquel les lames basculent. À calibrer en observant `sensor.pergola_profile_angle`.",
+          "summer_blade_offset": "Ajuste l'algorithme été après la bascule (phase B) uniquement — n'affecte ni l'hiver ni le matin.",
+          "phase_a_intercept": "Où commence la rampe du matin (% de fermeture quand le soleil arrive).",
+          "sun_az_min": "En dessous de cet azimut solaire, le bâtiment fait de l'ombre à la pergola et l'algorithme repasse en position nuageux/standby.",
+          "sun_az_max": "Au-dessus de cet azimut solaire, le bâtiment fait de l'ombre à la pergola et l'algorithme repasse en position nuageux/standby."
         }
       },
       "operation": {
         "title": "Paramètres de fonctionnement",
-        "description": "Modifiez les paramètres de fonctionnement.",
+        "description": "Modifiez la fréquence de la boucle et le comportement standby.",
         "data": {
           "update_interval": "Intervalle de mise à jour",
           "step_size": "Pas de quantisation",
           "deadband": "Zone morte",
-          "cloudy_target": "Position nuageux/standby",
+          "cloudy_target": "Position nuageux / standby",
           "min_useful_percent": "Position minimum utile",
-          "humidity_max": "Seuil d'humidité maximum",
+          "humidity_max": "Humidité maximum",
           "min_elevation": "Élévation solaire minimum"
         },
         "data_description": {
-          "update_interval": "Fréquence d'exécution de la boucle de contrôle.",
+          "update_interval": "À quelle fréquence la boucle de contrôle tourne.",
           "step_size": "La position est arrondie aux multiples de cette valeur pour réduire l'usure mécanique.",
-          "deadband": "Changement minimum de position requis pour déclencher un mouvement.",
-          "cloudy_target": "Position par défaut quand il fait nuageux ou en standby.",
-          "min_useful_percent": "En dessous de cette position, passe en standby.",
-          "humidity_max": "L'automatisation est bloquée quand l'humidité dépasse cette valeur.",
+          "deadband": "Changement minimum requis pour déclencher un mouvement.",
+          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition.",
+          "min_useful_percent": "En dessous de cette cible, passe en position standby.",
+          "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause.",
           "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."
         }
       },
-      "cloud_detection": {
-        "title": "Paramètres de détection nuage",
-        "description": "Modifiez les paramètres de détection nuage.",
+      "cloud_detection_basic": {
+        "title": "Détection nuage",
+        "description": "Modifiez la puissance crête de l'onduleur si besoin, ou cochez **Afficher les paramètres avancés** pour exposer la géométrie des capteurs et l'hystérésis.",
         "data": {
-          "pv_max_watts": "Puissance PV maximum",
-          "pv_panel_azimuth": "Azimut des panneaux PV",
+          "pv_max_watts": "Puissance crête solaire (PV)",
+          "advanced": "Afficher les paramètres avancés"
+        },
+        "data_description": {
+          "pv_max_watts": "Puissance maximum que votre système PV produit en conditions idéales.",
+          "advanced": "Révèle l'orientation des panneaux, les seuils d'état ensoleillé, le lissage, l'hystérésis et les réglages du capteur lux."
+        }
+      },
+      "cloud_detection_advanced": {
+        "title": "Paramètres avancés de détection nuage",
+        "description": "Réglez finement la géométrie des capteurs et les seuils de décision.",
+        "data": {
+          "pv_max_watts": "Puissance crête solaire (PV)",
+          "pv_panel_azimuth": "Direction d'orientation des panneaux PV",
           "pv_panel_tilt": "Inclinaison des panneaux PV",
           "pv_sunny_ratio": "Ratio seuil ensoleillé",
           "pv_smooth_alpha": "Coefficient de lissage",
           "hysteresis_duration": "Durée d'hystérésis",
-          "lux_sunny_ratio": "Seuil lux ensoleillé (× sin(élévation))",
+          "lux_sunny_ratio": "Seuil lux ensoleillé",
           "pv_observable_cos": "Seuil cosinus PV observable",
           "lux_az_min": "Lux observable : azimut min du soleil",
           "lux_az_max": "Lux observable : azimut max du soleil"
         },
         "data_description": {
-          "pv_max_watts": "Puissance crête de votre capteur PV en conditions idéales.",
-          "pv_panel_azimuth": "Direction vers laquelle les panneaux PV sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'azimut de la pergola — à modifier seulement si les panneaux sont sur un autre pan de toit.",
-          "pv_panel_tilt": "Inclinaison des panneaux PV en degrés (0° = horizontal, 90° = vertical).",
+          "pv_max_watts": "Puissance maximum que votre système PV produit en conditions idéales.",
+          "pv_panel_azimuth": "Direction vers laquelle les panneaux sont orientés (0°=N, 90°=E, 180°=S, 270°=O). Par défaut identique à l'orientation de la pergola.",
+          "pv_panel_tilt": "Inclinaison des panneaux en degrés (0°=plat, 90°=vertical).",
           "pv_sunny_ratio": "Fraction de la puissance ciel clair modélisée au-dessus de laquelle le ciel est considéré ensoleillé.",
-          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique (plus élevé = plus réactif).",
-          "hysteresis_duration": "Temps minimum avant de basculer entre état ensoleillé/nuageux.",
-          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation) = ensoleillé. À calibrer depuis une mesure de plein midi clair.",
-          "pv_observable_cos": "Le PV ne vote « ensoleillé » que si cos(angle d'incidence sur le panneau) dépasse ce seuil — évite les faux nuageux quand le panneau est trop hors-axe ou ombragé.",
-          "lux_az_min": "Azimut solaire (°) à partir duquel le capteur lux voit le soleil direct.",
-          "lux_az_max": "Azimut solaire (°) au-delà duquel le capteur lux ne voit plus le soleil direct."
+          "pv_smooth_alpha": "Poids des nouvelles mesures vs l'historique récent.",
+          "hysteresis_duration": "Temps minimum avant de basculer entre les états ensoleillé et nuageux.",
+          "lux_sunny_ratio": "Lux supérieur à cette valeur × sin(élévation) = ensoleillé.",
+          "pv_observable_cos": "Avancé — le PV ne vote « ensoleillé » que si cos(angle d'incidence) sur le panneau dépasse ce seuil.",
+          "lux_az_min": "Avancé — azimut solaire à partir duquel le capteur lux voit le soleil direct.",
+          "lux_az_max": "Avancé — azimut solaire au-delà duquel le capteur lux ne voit plus le soleil direct."
         }
       }
     }

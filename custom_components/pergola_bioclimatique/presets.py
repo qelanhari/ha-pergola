@@ -141,6 +141,36 @@ PRESETS: dict[str, dict[str, Any]] = {
         "source_url": "https://www.corradi.eu/en/products/bioclimatics/maestro",
         "notes": "Manufacturer page: blades can be turned up to 140°.",
     },
+
+    # --- Solembra (French) ---------------------------------------------------
+    # All three Solembra bioclimatic ranges share the same blade module —
+    # "1 ou 2 modules de lames orientables de 0 à 160°". Difference between
+    # models is overall surface area (Izzy ≤32m², Me ≤36m², Design ≤48m²),
+    # not blade physics.
+    "solembra_sol_izzy": {
+        "display_name": "Solembra Sol Izzy",
+        "brand": "Solembra",
+        "values": {CONF_MAX_OPENING_ANGLE: 160},
+        "source": "verified",
+        "source_url": "https://produits.batiactu.com/produits/solembra-pergola-bioclimatique-a-lames-orientable--gamme-so-194361.php",
+        "notes": "Manufacturer spec sheet: blades 0–160°. Standard module, up to 32m².",
+    },
+    "solembra_sol_me": {
+        "display_name": "Solembra Sol Me",
+        "brand": "Solembra",
+        "values": {CONF_MAX_OPENING_ANGLE: 160},
+        "source": "verified",
+        "source_url": "https://produits.batiactu.com/produits/solembra-pergola-bioclimatique-a-lames-orientable-gamme-sol-194417.php",
+        "notes": "Manufacturer spec sheet: blades 0–160°. Custom-dimension module, up to 36m².",
+    },
+    "solembra_sol_design": {
+        "display_name": "Solembra Sol Design",
+        "brand": "Solembra",
+        "values": {CONF_MAX_OPENING_ANGLE: 160},
+        "source": "verified",
+        "source_url": "https://produits.batiactu.com/produits/solembra-pergola-bioclimatique-a-lame-orientables-gamme-sol-194418.php",
+        "notes": "Manufacturer spec sheet: blades 0–160°. Largest range, up to 48m².",
+    },
 }
 
 

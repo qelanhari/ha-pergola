@@ -272,11 +272,14 @@ class TestKnownPresets:
             ("renson_algarve", 150),
             ("pratic_vision", 140),
             ("corradi_maestro", 140),
+            ("solembra_sol_izzy", 160),
+            ("solembra_sol_me", 160),
+            ("solembra_sol_design", 160),
         ],
     )
     def test_max_opening_angle(self, model_id: str, expected_max_angle: int) -> None:
         assert presets.PRESETS[model_id]["values"][const.CONF_MAX_OPENING_ANGLE] == expected_max_angle
 
     def test_count(self) -> None:
-        """v1.15 ships exactly 8 verified presets + custom (9 total)."""
-        assert len(presets.PRESETS) == 9
+        """v1.16 ships 11 verified presets + custom (12 total)."""
+        assert len(presets.PRESETS) == 12

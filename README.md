@@ -31,7 +31,7 @@ The setup wizard has 3 mandatory steps (4 if you wire up cloud detection). All a
 
 That's it. The pergola will calibrate on the next sunny morning and start tracking the sun.
 
-#### Supported pergola models in v1.15
+#### Supported pergola models
 
 The dropdown ships with these presets — each fills in the manufacturer's published maximum blade rotation angle so you don't have to look it up:
 
@@ -39,6 +39,7 @@ The dropdown ships with these presets — each fills in the manufacturer's publi
 - **Renson** Camargue — 150°; Camargue Skye — 135°; Algarve — 150°
 - **Pratic** Vision — 140°
 - **Corradi** Maestro — 140°
+- **Solembra** Sol Izzy, Sol Me, Sol Design — 160° (added in v1.16)
 
 **⚠ Only the Brustor B200 XL has been tested end-to-end on real hardware** (it's the maintainer's own pergola). Every other preset is populated from the manufacturer's published spec sheet but hasn't been field-validated. The seasonal-mode algorithm was tuned for Brustor-style waterproof louvers — users of other brands may need to fine-tune `blade_pitch_ratio`, `flip_profile_threshold`, `phase_a_intercept`, or `summer_blade_offset` via the advanced settings if behavior drifts. **If you spot a spec error or want a preset added/adjusted, please [open an issue](https://github.com/qelanhari/ha-pergola/issues) with your model and the correction.**
 
@@ -122,6 +123,7 @@ The setup wizard's "Pergola model" dropdown picks from a small registry of brand
 | Renson Algarve | 150° | [renson.net](https://renson.net/en-us/products/pergolas/algarve) |
 | Pratic Vision | 140° | [pratic.it](https://www.pratic.it/en/product/vision/) |
 | Corradi Maestro | 140° | [corradi.eu](https://www.corradi.eu/en/products/bioclimatics/maestro) |
+| Solembra Sol Izzy / Sol Me / Sol Design | 160° | Manufacturer spec sheets via [batiactu.com](https://produits.batiactu.com/) — all three Solembra ranges share the same 0–160° blade module |
 
 **End-to-end validation status**: only the Brustor B200 XL is field-validated. Other entries are taken at face value from the manufacturer's product page. The seasonal-mode algorithm itself was tuned on a Brustor-style waterproof louver pergola; non-Brustor users may need to tweak `flip_profile_threshold`, `phase_a_intercept`, and `summer_blade_offset` via the advanced view if they observe drift.
 

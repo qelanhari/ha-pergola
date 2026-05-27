@@ -141,7 +141,6 @@ class TestGeometryDefaults:
             const.CONF_FLIP_PROFILE_THRESHOLD: const.DEFAULT_FLIP_PROFILE_THRESHOLD,
             const.CONF_SUMMER_BLADE_OFFSET: const.DEFAULT_SUMMER_BLADE_OFFSET,
             const.CONF_PHASE_A_INTERCEPT: const.DEFAULT_PHASE_A_INTERCEPT,
-            const.CONF_PHASE_B_BRIDGE_DEG: const.DEFAULT_PHASE_B_BRIDGE_DEG,
             const.CONF_SUN_AZ_MIN: 40,
             const.CONF_SUN_AZ_MAX: 220,
         }
@@ -344,7 +343,6 @@ def _legacy_default_install_dict(face_az: int, with_cloud: bool) -> dict:
         const.CONF_FLIP_PROFILE_THRESHOLD: const.DEFAULT_FLIP_PROFILE_THRESHOLD,
         const.CONF_SUMMER_BLADE_OFFSET: const.DEFAULT_SUMMER_BLADE_OFFSET,
         const.CONF_PHASE_A_INTERCEPT: const.DEFAULT_PHASE_A_INTERCEPT,
-        const.CONF_PHASE_B_BRIDGE_DEG: const.DEFAULT_PHASE_B_BRIDGE_DEG,
         const.CONF_SUN_AZ_MIN: face_az - const.DEFAULT_SUN_AZ_HALF_WIDTH,
         const.CONF_SUN_AZ_MAX: face_az + const.DEFAULT_SUN_AZ_HALF_WIDTH,
     })

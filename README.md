@@ -70,7 +70,7 @@ After install, the integration exposes one **device** with several entities:
 
 | Entity | What it does |
 |---|---|
-| `select.pergola_mode` | Switch between **Hiver** (winter, follow the sun), **Été** (summer, block the sun), **Été 2D v2** (summer with a smoothed midday flip), and **Manuel** (automation off). |
+| `select.pergola_mode` | Switch between **Hiver** (winter, follow the sun), **Été** (summer, block the sun), and **Manuel** (automation off). |
 | `button.pergola_recalibrate` | Force a full close-and-verify calibration cycle. Use after a power outage or if the cover drifted. |
 | `button.pergola_refresh_target` | Trigger an immediate control loop run. Handy when tweaking settings. |
 | `binary_sensor.pergola_ready` | Lit once the morning calibration has run. The pergola won't move until this is on. |
@@ -85,7 +85,6 @@ After install, the integration exposes one **device** with several entities:
 
 - **Hiver (Winter)** — Slats track the sun upward as it rises, then hold the highest position when the sun descends. Maximizes direct sunlight.
 - **Été (Summer)** — Slats follow the sun's profile angle to block direct rays while preserving airflow and diffuse light. Flips blade side at midday.
-- **Été 2D v2 (Summer, experimental)** — Same algorithm as **Été** but with a smooth *bridge* across the midday flip instead of slamming the blades flat and reopening. Tune the bridge width with the advanced **Flip bridge width** geometry field (0 = same as **Été**). Pick this for side-by-side comparison; **Été** is unchanged.
 - **Manuel (Manual)** — Control loop disabled. You're in charge.
 
 Switch modes at any time via the **Mode** select. Switching to **Manuel** stops all automatic movement; switching back resumes from the next control tick.

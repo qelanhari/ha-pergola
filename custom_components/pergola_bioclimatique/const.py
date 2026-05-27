@@ -23,7 +23,6 @@ CONF_SUN_AZ_MIN = "sun_az_min"
 CONF_SUN_AZ_MAX = "sun_az_max"
 CONF_SUMMER_BLADE_OFFSET = "summer_blade_offset"
 CONF_PHASE_A_INTERCEPT = "phase_a_intercept"
-CONF_PHASE_B_BRIDGE_DEG = "phase_b_bridge_deg"
 
 # Config keys — Step 3: Operation
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -88,12 +87,6 @@ DEFAULT_SUMMER_BLADE_OFFSET = 0
 # when first rays start passing).
 DEFAULT_PHASE_A_INTERCEPT = 40
 
-# "Été 2D v2" mode only: width (in profile-angle degrees past the flip) of the
-# C0 linear bridge that splices phase A's 100 % down to the phase-B cutoff
-# value, instead of slamming in a single tick. 0 disables the bridge (= legacy
-# "Été" behavior at the flip). Only consulted by compute_summer_target_v2.
-DEFAULT_PHASE_B_BRIDGE_DEG = 6
-
 # Defaults — Operation
 DEFAULT_UPDATE_INTERVAL = 5
 DEFAULT_STEP_SIZE = 5
@@ -118,12 +111,8 @@ DEFAULT_LUX_AZ_MAX = 260
 # Modes
 MODE_WINTER = "Hiver"
 MODE_SUMMER = "Été"
-MODE_SUMMER_2D_V2 = "Été 2D v2"
 MODE_MANUAL = "Manuel"
-MODES = [MODE_WINTER, MODE_SUMMER, MODE_SUMMER_2D_V2, MODE_MANUAL]
-# Modes that run the summer control path (azimuth window + sunny/cloudy
-# fallback apply to all of them; each picks a different solar-target law).
-SUMMER_MODES = (MODE_SUMMER, MODE_SUMMER_2D_V2)
+MODES = [MODE_WINTER, MODE_SUMMER, MODE_MANUAL]
 
 # Safety lock origins
 LOCK_RAIN = "rain"

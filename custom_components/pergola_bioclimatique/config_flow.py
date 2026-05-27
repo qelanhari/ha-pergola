@@ -62,7 +62,6 @@ from .const import (
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_PHASE_A_INTERCEPT,
-    CONF_PHASE_B_BRIDGE_DEG,
     CONF_STEP_SIZE,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
@@ -92,7 +91,6 @@ from .const import (
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_PHASE_A_INTERCEPT,
-    DEFAULT_PHASE_B_BRIDGE_DEG,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DEFAULT_STEP_SIZE,
@@ -111,7 +109,6 @@ _GEOMETRY_ADVANCED_FIELDS: tuple[str, ...] = (
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_PHASE_A_INTERCEPT,
-    CONF_PHASE_B_BRIDGE_DEG,
     CONF_SUN_AZ_MIN,
     CONF_SUN_AZ_MAX,
 )
@@ -144,7 +141,6 @@ def _geometry_defaults(face_azimuth: float) -> dict[str, Any]:
         CONF_FLIP_PROFILE_THRESHOLD: DEFAULT_FLIP_PROFILE_THRESHOLD,
         CONF_SUMMER_BLADE_OFFSET: DEFAULT_SUMMER_BLADE_OFFSET,
         CONF_PHASE_A_INTERCEPT: DEFAULT_PHASE_A_INTERCEPT,
-        CONF_PHASE_B_BRIDGE_DEG: DEFAULT_PHASE_B_BRIDGE_DEG,
         CONF_SUN_AZ_MIN: face_azimuth - DEFAULT_SUN_AZ_HALF_WIDTH,
         CONF_SUN_AZ_MAX: face_azimuth + DEFAULT_SUN_AZ_HALF_WIDTH,
     }
@@ -343,17 +339,6 @@ def _geometry_advanced_schema(defaults: dict[str, Any] | None = None) -> vol.Sch
                 NumberSelectorConfig(
                     min=0, max=80, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="%",
-                )
-            ),
-            vol.Required(
-                CONF_PHASE_B_BRIDGE_DEG,
-                default=d.get(
-                    CONF_PHASE_B_BRIDGE_DEG, DEFAULT_PHASE_B_BRIDGE_DEG
-                ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=0, max=30, step=1, mode=NumberSelectorMode.BOX,
-                    unit_of_measurement="°",
                 )
             ),
             vol.Required(

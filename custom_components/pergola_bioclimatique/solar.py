@@ -102,6 +102,73 @@ def compute_summer_target(
     )
 
 
+def blade_cutoff_angle(profile_angle: float, pitch_ratio: float) -> float:
+    """Blade tilt (deg) that just cuts off the direct beam between adjacent
+    flat louvers, as a function of the sun's profile angle.
+
+    This is the geometric core of the summer "phase B" law, extracted so the
+    v2 model can reuse it. Returns the raw angle WITHOUT calibration
+    offset or clamping — callers add the offset and clamp/convert.
+    """
+    sin_arg = pitch_ratio * math.sin(math.radians(profile_angle))
+    if sin_arg >= 1.0:
+        return profile_angle - 90.0  # degenerate (sun in face plane)
+    return profile_angle - 90.0 + math.degrees(math.acos(sin_arg))
+
+
+def compute_summer_target_v2(
+    profile_angle: float,
+    calibration_offset: float,
+    max_opening_angle: float,
+    step_size: float,
+    pitch_ratio: float,
+    flip_profile_threshold: float,
+    summer_blade_offset: float = 0.0,
+    phase_a_intercept: float = 40.0,
+    bridge_deg: float = 6.0,
+) -> float:
+    """Summer target, **v2** — same physics as :func:`compute_summer_target`
+    but with the phase-A→phase-B cliff removed.
+
+    The original model jumps from 100 % at the flip straight to the (much
+    lower) phase-B cutoff value in a single tick (e.g. 100 %→~10 %), slamming
+    the blades flat then reopening. v2 splices a short linear bridge over
+    ``[flip, flip + bridge_deg]`` so the command is C0-continuous.
+
+    Phase A (``profile < flip``) is the unchanged empirical linear ramp.
+    Phase B (``profile >= flip + bridge_deg``) is the unchanged cutoff law.
+    """
+    if profile_angle < flip_profile_threshold:
+        if profile_angle <= 0:
+            return quantize(phase_a_intercept, step_size)
+        target_pct = (
+            phase_a_intercept
+            + (100.0 - phase_a_intercept)
+            * profile_angle
+            / flip_profile_threshold
+        )
+        return quantize(target_pct, step_size)
+
+    def _cutoff_pct(profile: float) -> float:
+        blade = (
+            blade_cutoff_angle(profile, pitch_ratio)
+            + calibration_offset
+            + summer_blade_offset
+        )
+        if blade <= 0:
+            return 100.0
+        return angle_to_percent(blade, max_opening_angle)
+
+    bridge_end = flip_profile_threshold + bridge_deg
+    if bridge_deg > 0 and profile_angle < bridge_end:
+        # Linear bridge from (flip, 100 %) to (bridge_end, cutoff%).
+        end_pct = _cutoff_pct(bridge_end)
+        frac = (profile_angle - flip_profile_threshold) / bridge_deg
+        return quantize(100.0 + (end_pct - 100.0) * frac, step_size)
+
+    return quantize(_cutoff_pct(profile_angle), step_size)
+
+
 def compute_pv_threshold(
     sun_elevation: float, sun_azimuth: float,
     panel_azimuth: float, panel_tilt: float,

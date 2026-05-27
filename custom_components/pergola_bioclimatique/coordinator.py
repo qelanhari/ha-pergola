@@ -48,6 +48,7 @@ from .const import (
     CONF_PV_SUNNY_RATIO,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_PHASE_A_INTERCEPT,
+    CONF_PHASE_B_BRIDGE_DEG,
     CONF_STEP_SIZE,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
@@ -65,6 +66,7 @@ from .const import (
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_PHASE_A_INTERCEPT,
+    DEFAULT_PHASE_B_BRIDGE_DEG,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DOMAIN,
@@ -72,7 +74,9 @@ from .const import (
     LOCK_RAIN,
     MODE_MANUAL,
     MODE_SUMMER,
+    MODE_SUMMER_2D_V2,
     MODE_WINTER,
+    SUMMER_MODES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -504,16 +508,33 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 phase_a_intercept = self._cfg(
                     CONF_PHASE_A_INTERCEPT, DEFAULT_PHASE_A_INTERCEPT
                 )
-                solar_percent = solar.compute_summer_target(
-                    self._profile_angle, offset, max_angle, step,
-                    pitch_ratio, flip_threshold,
-                    summer_offset, phase_a_intercept,
-                )
-                summer_branch = (
-                    "phase B (cutoff)"
-                    if self._profile_angle >= flip_threshold
-                    else "phase A (linear)"
-                )
+                if self._mode == MODE_SUMMER_2D_V2:
+                    bridge_deg = self._cfg(
+                        CONF_PHASE_B_BRIDGE_DEG, DEFAULT_PHASE_B_BRIDGE_DEG
+                    )
+                    solar_percent = solar.compute_summer_target_v2(
+                        self._profile_angle, offset, max_angle, step,
+                        pitch_ratio, flip_threshold,
+                        summer_offset, phase_a_intercept, bridge_deg,
+                    )
+                    bridge_end = flip_threshold + bridge_deg
+                    if self._profile_angle < flip_threshold:
+                        summer_branch = "v2 phase A (linear)"
+                    elif self._profile_angle < bridge_end:
+                        summer_branch = "v2 bridge"
+                    else:
+                        summer_branch = "v2 phase B (cutoff)"
+                else:
+                    solar_percent = solar.compute_summer_target(
+                        self._profile_angle, offset, max_angle, step,
+                        pitch_ratio, flip_threshold,
+                        summer_offset, phase_a_intercept,
+                    )
+                    summer_branch = (
+                        "phase B (cutoff)"
+                        if self._profile_angle >= flip_threshold
+                        else "phase A (linear)"
+                    )
 
         self._solar_target = solar_percent
 

@@ -52,6 +52,7 @@
           "flip_profile_threshold": "Angle solaire de bascule",
           "summer_blade_offset": "Réglage fin été",
           "phase_a_intercept": "Fermeture de départ du matin",
+          "phase_b_bridge_deg": "Largeur du pont de bascule (v2)",
           "sun_az_min": "Exposition commence à l'azimut",
           "sun_az_max": "Exposition se termine à l'azimut"
         },
@@ -63,6 +64,7 @@
           "flip_profile_threshold": "Angle de profil solaire (°) à partir duquel les lames basculent d'un côté à l'autre. À calibrer en observant `sensor.pergola_profile_angle` — la valeur à laquelle le premier rayon commence à passer entre les lames fermées au max est votre seuil.",
           "summer_blade_offset": "Ajuste l'algorithme été après la bascule (phase B) uniquement — n'affecte ni l'hiver ni le matin. Valeurs positives pour fermer plus tôt l'après-midi.",
           "phase_a_intercept": "Où commence la rampe du matin (% de fermeture quand le soleil arrive). La pergola interpole linéairement de cette valeur jusqu'à 100 % à l'angle de bascule. Augmentez pour plus d'ombre tôt ; diminuez pour ouvrir davantage.",
+          "phase_b_bridge_deg": "Mode « Été 2D v2 » uniquement : adoucit la bascule. Sur ce nombre de degrés d'angle solaire après le seuil de bascule, la position glisse de 100 % jusqu'à la valeur de cutoff de l'après-midi au lieu de sauter d'un coup. 0 = bascule instantanée classique. Sans effet dans le mode « Été » standard.",
           "sun_az_min": "En dessous de cet azimut solaire, le bâtiment lui-même fait de l'ombre à la pergola (mur Est le matin) et l'algorithme repasse en position nuageux/standby. Défaut = direction d'orientation − 90°.",
           "sun_az_max": "Au-dessus de cet azimut solaire, le bâtiment fait de l'ombre à la pergola (mur Ouest l'après-midi) et l'algorithme repasse en position nuageux/standby. Défaut = direction d'orientation + 90°."
         }
@@ -158,6 +160,7 @@
           "flip_profile_threshold": "Angle solaire de bascule",
           "summer_blade_offset": "Réglage fin été",
           "phase_a_intercept": "Fermeture de départ du matin",
+          "phase_b_bridge_deg": "Largeur du pont de bascule (v2)",
           "sun_az_min": "Exposition commence à l'azimut",
           "sun_az_max": "Exposition se termine à l'azimut"
         },
@@ -169,6 +172,7 @@
           "flip_profile_threshold": "Angle de profil solaire (°) à partir duquel les lames basculent. À calibrer en observant `sensor.pergola_profile_angle`.",
           "summer_blade_offset": "Ajuste l'algorithme été après la bascule (phase B) uniquement — n'affecte ni l'hiver ni le matin.",
           "phase_a_intercept": "Où commence la rampe du matin (% de fermeture quand le soleil arrive).",
+          "phase_b_bridge_deg": "Mode « Été 2D v2 » uniquement : degrés d'angle solaire sur lesquels la bascule est adoucie au lieu de sauter. 0 = bascule instantanée.",
           "sun_az_min": "En dessous de cet azimut solaire, le bâtiment fait de l'ombre à la pergola et l'algorithme repasse en position nuageux/standby.",
           "sun_az_max": "Au-dessus de cet azimut solaire, le bâtiment fait de l'ombre à la pergola et l'algorithme repasse en position nuageux/standby."
         }

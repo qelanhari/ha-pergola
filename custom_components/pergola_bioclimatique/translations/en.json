@@ -52,6 +52,7 @@
           "flip_profile_threshold": "Sun angle when blades flip",
           "summer_blade_offset": "Summer fine-tuning offset",
           "phase_a_intercept": "Morning starting closure",
+          "phase_b_bridge_deg": "Flip bridge width (v2)",
           "sun_az_min": "Sun exposure starts at azimuth",
           "sun_az_max": "Sun exposure ends at azimuth"
         },
@@ -63,6 +64,7 @@
           "flip_profile_threshold": "Sun profile angle (°) at which blades flip from one side to the other. Calibrate by watching `sensor.pergola_profile_angle` — the value at which the first beam of sun starts to slip between fully-closed blades is your threshold.",
           "summer_blade_offset": "Tweaks the summer algorithm after the flip (phase B) only — doesn't change winter or morning behavior. Use positive values to close earlier in the afternoon.",
           "phase_a_intercept": "Where the morning ramp starts (% closure when the sun first hits). The pergola interpolates linearly from this value up to 100% at the flip angle. Raise it to keep more shade early; lower it to open more.",
+          "phase_b_bridge_deg": "‘Été 2D v2’ mode only: smooths the flip. Over this many degrees of sun angle past the flip threshold, the position glides from 100% down to the afternoon cutoff value instead of jumping in a single step. 0 = the classic instant flip. No effect in the standard ‘Été’ mode.",
           "sun_az_min": "Below this sun azimuth, the building itself shadows the pergola (eastern wall in the morning) and the algorithm falls back to the cloudy/standby position. Default = facing direction − 90°.",
           "sun_az_max": "Above this sun azimuth, the building shadows the pergola (western wall in the afternoon) and the algorithm falls back to the cloudy/standby position. Default = facing direction + 90°."
         }
@@ -158,6 +160,7 @@
           "flip_profile_threshold": "Sun angle when blades flip",
           "summer_blade_offset": "Summer fine-tuning offset",
           "phase_a_intercept": "Morning starting closure",
+          "phase_b_bridge_deg": "Flip bridge width (v2)",
           "sun_az_min": "Sun exposure starts at azimuth",
           "sun_az_max": "Sun exposure ends at azimuth"
         },
@@ -169,6 +172,7 @@
           "flip_profile_threshold": "Sun profile angle (°) at which blades flip side. Calibrate by watching `sensor.pergola_profile_angle`.",
           "summer_blade_offset": "Tweaks the summer algorithm after the flip (phase B) only — doesn't change winter or morning behavior.",
           "phase_a_intercept": "Where the morning ramp starts (% closure when the sun first hits).",
+          "phase_b_bridge_deg": "‘Été 2D v2’ mode only: degrees of sun angle over which the flip is smoothed instead of jumping. 0 = instant flip.",
           "sun_az_min": "Below this sun azimuth, the building shadows the pergola and the algorithm falls back to the cloudy/standby position.",
           "sun_az_max": "Above this sun azimuth, the building shadows the pergola and the algorithm falls back to the cloudy/standby position."
         }

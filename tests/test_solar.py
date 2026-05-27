@@ -12,9 +12,11 @@ sys.path.insert(
 )
 from solar import (  # noqa: E402
     angle_to_percent,
+    blade_cutoff_angle,
     compute_profile_angle,
     compute_pv_threshold,
     compute_summer_target,
+    compute_summer_target_v2,
     compute_winter_target,
     is_sunny,
     panel_cos_aoi,
@@ -262,6 +264,77 @@ class TestComputeSummerTarget:
         # (also note: with P/W=0.79 + offset=−10, the field 15% target lands
         #  almost exactly — see plan doc for the calibration arithmetic.)
         assert result == 25.0
+
+
+class TestBladeCutoffAngle:
+    """Raw inter-blade cutoff angle (no offset, no clamp)."""
+
+    def test_matches_legacy_phase_b_core(self) -> None:
+        """blade_cutoff_angle is exactly the phase-B core of the legacy
+        formula: profile − 90 + arccos(pitch·sin profile)."""
+        profile, pitch = 86.0, 0.92
+        expected = (
+            profile - 90.0
+            + math.degrees(math.acos(pitch * math.sin(math.radians(profile))))
+        )
+        assert abs(blade_cutoff_angle(profile, pitch) - expected) < 1e-9
+
+    def test_degenerate_sun_in_face_plane(self) -> None:
+        """pitch·sin profile >= 1 → returns profile − 90 (no arccos)."""
+        assert blade_cutoff_angle(90.0, 1.0) == 0.0
+
+
+class TestComputeSummerTargetV2:
+    """v2 = legacy summer shape with a C0 bridge across the flip."""
+
+    _COMMON = dict(
+        calibration_offset=-10, max_opening_angle=135, step_size=5,
+        pitch_ratio=0.92, flip_profile_threshold=80, phase_a_intercept=40,
+    )
+
+    def test_phase_a_identical_to_legacy(self) -> None:
+        """Before the flip, v2 is byte-identical to the legacy linear ramp."""
+        for profile in (10, 30, 48.8, 65, 79.9):
+            assert compute_summer_target_v2(
+                profile_angle=profile, **self._COMMON
+            ) == compute_summer_target(profile_angle=profile, **self._COMMON)
+
+    def test_bridge_zero_reproduces_legacy_everywhere(self) -> None:
+        """bridge_deg=0 disables the bridge → identical to legacy at every
+        profile, including past the flip."""
+        for profile in (10, 50, 79.9, 80, 82, 86, 95, 120):
+            assert compute_summer_target_v2(
+                profile_angle=profile, bridge_deg=0, **self._COMMON
+            ) == compute_summer_target(profile_angle=profile, **self._COMMON)
+
+    def test_bridge_removes_the_cliff(self) -> None:
+        """Legacy slams from ~100% to the low cutoff value in one step at the
+        flip; v2 holds 100% at the flip and steps down gradually instead."""
+        legacy_at_flip = compute_summer_target(
+            profile_angle=80, **self._COMMON
+        )
+        v2_at_flip = compute_summer_target_v2(
+            profile_angle=80, bridge_deg=6, **self._COMMON
+        )
+        assert legacy_at_flip <= 20  # the cliff bottom
+        assert v2_at_flip == 100.0  # bridge starts at the top
+
+    def test_bridge_is_monotonic_down(self) -> None:
+        """Across the bridge the target only decreases (no slam, no bounce)."""
+        prev = 101.0
+        for profile in (80, 81, 82, 83, 84, 85, 86):
+            cur = compute_summer_target_v2(
+                profile_angle=profile, bridge_deg=6, **self._COMMON
+            )
+            assert cur <= prev
+            prev = cur
+
+    def test_past_bridge_equals_legacy_cutoff(self) -> None:
+        """Beyond flip+bridge_deg, v2 is the unchanged cutoff law."""
+        for profile in (87, 95, 110):
+            assert compute_summer_target_v2(
+                profile_angle=profile, bridge_deg=6, **self._COMMON
+            ) == compute_summer_target(profile_angle=profile, **self._COMMON)
 
 
 class TestComputePvThreshold:

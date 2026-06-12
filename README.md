@@ -99,7 +99,9 @@ Switch modes at any time via the **Mode** select. Switching to **Manuel** stops 
 
 **Pergola flickers between positions on a partly cloudy day.** The hysteresis duration (default 15 minutes) should already smooth this out. If it's still flickering, the issue is more likely your sensor — try the lux/PV combination if you only have one.
 
-**Blades close too late in the morning, or open too early in the afternoon.** That's the `sun_az_min` / `sun_az_max` exposure window — by default, it's the facing direction ±90°, but if your building's walls shadow the pergola for longer, you need to tighten it. Open **Settings → Devices & Services → Pergola Bioclimatique → Configure → Show advanced settings** to adjust.
+**Blades close too late in the morning.** That's `sun_az_min` — by default the facing direction − 90°, but if your building's wall shadows the pergola for longer, tighten it. Open **Settings → Devices & Services → Pergola Bioclimatique → Configure → Show advanced settings** to adjust.
+
+**Blades jump open in the late afternoon while the sun is still hitting the pergola.** In summer mode the blades ramp up to the perpendicular/cloudy resting position on their own — if they jump there early instead, your `sun_az_max` is too low: the integration thinks the building already shadows the pergola and stops sun-tracking. Widen `sun_az_max` (advanced settings) so the window only closes once the sun is genuinely behind the structure.
 
 **Blades close too much / not enough in summer.** Tweak `summer_blade_offset` in advanced settings. Positive value = more closure on the afternoon side; negative = less.
 
@@ -185,7 +187,7 @@ The `max(…, current_pos)` keeps the position from descending as the sun sets, 
 
 ### Summer mode — two-phase
 
-`compute_summer_target(profile_angle, calibration_offset, max_opening_angle, step_size, pitch_ratio, flip_profile_threshold, summer_blade_offset, phase_a_intercept)`:
+`compute_summer_target(profile_angle, calibration_offset, max_opening_angle, step_size, pitch_ratio, flip_profile_threshold, summer_blade_offset, phase_a_intercept, cloudy_target=None)`:
 
 **Phase A** (profile_angle < flip_threshold) — **linear ramp**:
 ```
@@ -199,7 +201,9 @@ Theoretical cutoff geometry has the wrong slope for real blades; field observati
 blade_angle = profile - 90 + δ + calibration_offset + summer_blade_offset
 target_pct = (blade_angle / max_opening_angle) × 100
 ```
-Quantized by `step_size`. If `blade_angle ≤ 0` (degenerate late-afternoon edge case) → 100% (fully closed).
+Quantized by `step_size`. If `blade_angle ≤ 0` (degenerate edge case just after the flip) → 100% (max opening).
+
+**Phase B cap** — perpendicular blades (90° of `max_opening_angle`, ≈ 67% at 135°) are the last position that still casts shade; past it the raw geometry keeps opening toward 100% while tracking sun the blades can no longer block. So phase B is capped at `min(cloudy_target, perpendicular)` (quantized): the blades ramp up to the cap through the afternoon and rest there. `cloudy_target` can only lower the resting point, never push tracking past perpendicular. (The coordinator always passes `cloudy_target`; calling the function without it gives the raw uncapped curve.)
 
 ### Cloud detection
 
@@ -243,7 +247,7 @@ Resumes normal operation when the lock clears.
 | `summer_blade_offset` | 0° | -30 to +30 | Additional blade-angle correction applied to phase B only. Positive = closer afternoon side. |
 | `phase_a_intercept` | 40% | 0–80 | Target % at profile=0 for the linear morning ramp. |
 | `sun_az_min` | face-90° | 0–360 | Below this sun azimuth, building shadows the pergola → fall back to cloudy_target. |
-| `sun_az_max` | face+90° | 0–360 | Above this sun azimuth, building shadows the pergola → fall back to cloudy_target. |
+| `sun_az_max` | face+90° | 0–360 | Above this sun azimuth, building shadows the pergola → fall back to cloudy_target. Keep it wide: the summer phase-B cap handles the normal end-of-afternoon resting; this is only the building-shadow guard. |
 
 #### Operation (Step 3)
 
@@ -252,7 +256,7 @@ Resumes normal operation when the lock clears.
 | `update_interval` | 5 min | 1–30 | Control loop period. |
 | `step_size` | 5% | 1–10 | Position quantization (reduces mechanical wear). |
 | `deadband` | 2% | 1–10 | Minimum change to trigger a movement. |
-| `cloudy_target` | 60% | 0–100 | Position when cloudy / in standby / outside sun-exposure window. |
+| `cloudy_target` | 60% | 0–100 | Position when cloudy / in standby / outside sun-exposure window. Also caps the summer phase-B ramp (bounded by perpendicular blades — see Summer mode). |
 | `min_useful_percent` | 9% | 0–30 | Below this solar target, switch to cloudy_target (twilight guard). |
 | `humidity_max` | 80% | 50–100 | Above this humidity, automation is paused. |
 | `min_elevation` | 20° | 5–40 | Below this sun elevation, control loop and morning calibration stay idle. |

@@ -83,7 +83,7 @@
           "update_interval": "How often the control loop checks the sun and adjusts the pergola.",
           "step_size": "Blade position is rounded to multiples of this — reduces mechanical wear.",
           "deadband": "Minimum change needed to trigger a movement (small adjustments are ignored).",
-          "cloudy_target": "Position used when it's cloudy, in standby, or outside the sun-exposure window. Default 60% is a sweet spot: enough shade for diffuse light, enough opening for a view.",
+          "cloudy_target": "Position used when it's cloudy, in standby, or outside the sun-exposure window. Default 60% is a sweet spot: enough shade for diffuse light, enough opening for a view. In summer it also caps the sun-tracking target: blades ramp up to this position (never past perpendicular) in the afternoon and rest there.",
           "min_useful_percent": "Below this target, the pergola switches to the cloudy/standby position instead — avoids tiny early-morning movements.",
           "humidity_max": "Above this humidity, the automation is paused (useful when a wet pergola shouldn't move).",
           "min_elevation": "Below this sun elevation (e.g. dawn/dusk), the control loop and morning calibration stay idle."
@@ -189,7 +189,7 @@
           "update_interval": "How often the control loop runs.",
           "step_size": "Position is rounded to multiples of this value to reduce mechanical wear.",
           "deadband": "Minimum position change required to trigger a movement.",
-          "cloudy_target": "Position used when cloudy, in standby, or outside the sun-exposure window.",
+          "cloudy_target": "Position used when cloudy, in standby, or outside the sun-exposure window. Also caps the summer afternoon ramp (never past perpendicular blades).",
           "min_useful_percent": "Below this target, switch to the standby position instead.",
           "humidity_max": "Above this humidity, the automation is paused.",
           "min_elevation": "Below this sun elevation, the control loop and morning calibration are inactive."

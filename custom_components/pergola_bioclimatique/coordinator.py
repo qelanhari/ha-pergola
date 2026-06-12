@@ -56,17 +56,30 @@ from .const import (
     CONF_SUN_ELEVATION_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_BLADE_PITCH_RATIO,
+    DEFAULT_CALIBRATION_OFFSET,
+    DEFAULT_CLOUDY_TARGET,
+    DEFAULT_DEADBAND,
+    DEFAULT_FACE_AZIMUTH,
+    DEFAULT_HUMIDITY_MAX,
+    DEFAULT_HYSTERESIS_DURATION,
     DEFAULT_LUX_AZ_MAX,
     DEFAULT_LUX_AZ_MIN,
     DEFAULT_LUX_SUNNY_RATIO,
+    DEFAULT_MAX_OPENING_ANGLE,
+    DEFAULT_MIN_ELEVATION,
+    DEFAULT_MIN_USEFUL_PERCENT,
+    DEFAULT_PV_MAX_WATTS,
     DEFAULT_PV_OBSERVABLE_COS,
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
+    DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_PHASE_A_INTERCEPT,
+    DEFAULT_STEP_SIZE,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_SUN_AZ_HALF_WIDTH,
+    DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     LOCK_ORIGINS,
     LOCK_RAIN,
@@ -92,7 +105,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(
-                minutes=self._opt(entry, CONF_UPDATE_INTERVAL, 5)
+                minutes=self._opt(
+                    entry, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                )
             ),
         )
         self.config_entry = entry
@@ -105,6 +120,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._lux_smooth: float = 0.0
         self._pv_smooth_stale: bool = True
         self._is_sunny: bool = False
+        self._sunny_restore_fresh: bool = False
         self._sunny_changed_at: datetime = datetime.min
         self._last_calibration: date | None = None
         self._pergola_ready: bool = False
@@ -262,6 +278,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # first morning cycle reseeds them from the live sensor.
             self._pv_smooth_stale = True
             self._is_sunny = data.get("is_sunny", False)
+            # A same-day save from the last hour (entry reload, quick HA
+            # restart) means the restored is_sunny is still valid — don't
+            # let the stale-reseed cycle wipe it. Crucial when the reload
+            # lands in a sensor blind-spot: with neither PV nor lux
+            # observable, a wiped is_sunny would stay False (held) for
+            # the rest of the day.
+            self._sunny_restore_fresh = solar.is_recent_save(
+                data.get("saved_at"), datetime.now(), 3600
+            )
             self._mode = data.get("mode", MODE_WINTER)
             last_cal = data.get("last_calibration")
             if last_cal:
@@ -279,6 +304,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _save_state(self) -> None:
         await self._store.async_save({
+            "saved_at": datetime.now().isoformat(),
             "pv_smooth": self._pv_smooth,
             "lux_smooth": self._lux_smooth,
             "is_sunny": self._is_sunny,
@@ -430,7 +456,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._pergola_ready, self._descent_calibrated, self._is_sunny,
         )
 
-        min_elev = self._cfg(CONF_MIN_ELEVATION, 5)
+        min_elev = self._cfg(CONF_MIN_ELEVATION, DEFAULT_MIN_ELEVATION)
         if elev <= min_elev:
             _LOGGER.debug("Skip: elevation %.1f° ≤ min %.1f°", elev, min_elev)
             return self._build_data()
@@ -439,7 +465,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         humidity_entity = self._entity(CONF_HUMIDITY_ENTITY)
         if humidity_entity:
             humidity = self._get_float(humidity_entity)
-            humidity_max = self._cfg(CONF_HUMIDITY_MAX, 80)
+            humidity_max = self._cfg(CONF_HUMIDITY_MAX, DEFAULT_HUMIDITY_MAX)
             if humidity >= humidity_max:
                 _LOGGER.debug(
                     "Skip: humidity %.0f%% ≥ max %.0f%%", humidity, humidity_max
@@ -455,12 +481,14 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return self._build_data()
 
         # Solar geometry
-        face_azimuth = self._cfg(CONF_FACE_AZIMUTH, 130)
-        max_angle = self._cfg(CONF_MAX_OPENING_ANGLE, 135)
-        offset = self._cfg(CONF_CALIBRATION_OFFSET, -10)
-        step = self._cfg(CONF_STEP_SIZE, 5)
-        cloudy_target = self._cfg(CONF_CLOUDY_TARGET, 60)
-        min_useful = self._cfg(CONF_MIN_USEFUL_PERCENT, 9)
+        face_azimuth = self._cfg(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
+        max_angle = self._cfg(CONF_MAX_OPENING_ANGLE, DEFAULT_MAX_OPENING_ANGLE)
+        offset = self._cfg(CONF_CALIBRATION_OFFSET, DEFAULT_CALIBRATION_OFFSET)
+        step = self._cfg(CONF_STEP_SIZE, DEFAULT_STEP_SIZE)
+        cloudy_target = self._cfg(CONF_CLOUDY_TARGET, DEFAULT_CLOUDY_TARGET)
+        min_useful = self._cfg(
+            CONF_MIN_USEFUL_PERCENT, DEFAULT_MIN_USEFUL_PERCENT
+        )
 
         self._profile_angle = solar.compute_profile_angle(elev, azim, face_azimuth)
 
@@ -491,7 +519,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             sun_az_max = self._cfg(
                 CONF_SUN_AZ_MAX, face_azimuth + DEFAULT_SUN_AZ_HALF_WIDTH
             )
-            if not (sun_az_min <= azim <= sun_az_max):
+            if not solar.azimuth_in_window(azim, sun_az_min, sun_az_max):
                 # Sun outside the pergola's exposure window — the building
                 # itself is shadowing the protected zone, no direct rays
                 # to block. Fall back to diffuse-light position.
@@ -508,6 +536,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._profile_angle, offset, max_angle, step,
                     pitch_ratio, flip_threshold,
                     summer_offset, phase_a_intercept,
+                    cloudy_target,
                 )
                 summer_branch = (
                     "phase B (cutoff)"
@@ -572,7 +601,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._save_state()
 
         # Movement gating
-        deadband = self._cfg(CONF_DEADBAND, 2)
+        deadband = self._cfg(CONF_DEADBAND, DEFAULT_DEADBAND)
         delta = abs(final - current_pos)
         if delta <= deadband:
             _LOGGER.debug(
@@ -628,8 +657,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._is_sunny = True
             return
 
-        alpha = self._cfg(CONF_PV_SMOOTH_ALPHA, 0.4)
-        hysteresis = self._cfg(CONF_HYSTERESIS_DURATION, 900)
+        alpha = self._cfg(CONF_PV_SMOOTH_ALPHA, DEFAULT_PV_SMOOTH_ALPHA)
+        hysteresis = self._cfg(
+            CONF_HYSTERESIS_DURATION, DEFAULT_HYSTERESIS_DURATION
+        )
 
         # PV branch ---------------------------------------------------------
         pv_threshold = 0.0
@@ -647,7 +678,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     pv_raw, self._pv_smooth, alpha
                 )
 
-            pv_max = self._cfg(CONF_PV_MAX_WATTS, 3000)
+            pv_max = self._cfg(CONF_PV_MAX_WATTS, DEFAULT_PV_MAX_WATTS)
             ratio = self._cfg(CONF_PV_SUNNY_RATIO, DEFAULT_PV_SUNNY_RATIO)
             panel_azimuth = self._cfg(
                 CONF_PV_PANEL_AZIMUTH, DEFAULT_PV_PANEL_AZIMUTH
@@ -691,7 +722,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             az_min = self._cfg(CONF_LUX_AZ_MIN, DEFAULT_LUX_AZ_MIN)
             az_max = self._cfg(CONF_LUX_AZ_MAX, DEFAULT_LUX_AZ_MAX)
-            lux_observable = az_min <= azim <= az_max
+            lux_observable = solar.azimuth_in_window(azim, az_min, az_max)
             _LOGGER.debug(
                 "Cloud lux: raw=%.0f, smooth=%.1f, thr=%.0f, "
                 "azim=%.1f in [%.0f,%.0f]? %s",
@@ -701,8 +732,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Stale flag is cleared after the first reseeding cycle. Also wipe
         # the carried-over is_sunny so the first decision on a new day is
-        # not inherited from yesterday evening.
-        if self._pv_smooth_stale:
+        # not inherited from yesterday evening — unless the save is fresh
+        # (same-day, recent: entry reload / quick restart), in which case
+        # the restored is_sunny is still the correct current state.
+        if self._pv_smooth_stale and not self._sunny_restore_fresh:
             self._is_sunny = False
             self._sunny_changed_at = datetime.min
         self._pv_smooth_stale = False
@@ -750,7 +783,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (ValueError, TypeError):
             return
 
-        threshold = self._cfg(CONF_MIN_ELEVATION, 20)
+        threshold = self._cfg(CONF_MIN_ELEVATION, DEFAULT_MIN_ELEVATION)
         if elev > threshold and not self._pergola_ready and not self._calibrating:
             self.hass.async_create_task(self._async_calibrate())
 
@@ -780,7 +813,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self._last_calibration != today:
                 current_pos = self._get_cover_tilt()
                 last_known = self._last_known_position
-                deadband = self._cfg(CONF_DEADBAND, 2)
+                deadband = self._cfg(CONF_DEADBAND, DEFAULT_DEADBAND)
 
                 if (
                     last_known is not None

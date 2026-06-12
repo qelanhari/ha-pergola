@@ -2,6 +2,7 @@
 
 import math
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -12,10 +13,13 @@ sys.path.insert(
 )
 from solar import (  # noqa: E402
     angle_to_percent,
+    azimuth_delta,
+    azimuth_in_window,
     compute_profile_angle,
     compute_pv_threshold,
     compute_summer_target,
     compute_winter_target,
+    is_recent_save,
     is_sunny,
     panel_cos_aoi,
     quantize,
@@ -59,6 +63,50 @@ class TestComputeProfileAngle:
         left = compute_profile_angle(40, 110, 130)
         right = compute_profile_angle(40, 150, 130)
         assert abs(left - right) < 0.1
+
+    def test_north_facing_wraparound(self) -> None:
+        """face=10°, sun az=350° is a 20° delta across north — must equal
+        the mirrored az=30° case, not read as a 340° delta (→ 0)."""
+        across_north = compute_profile_angle(45, 350, 10)
+        mirrored = compute_profile_angle(45, 30, 10)
+        assert abs(across_north - mirrored) < 0.001
+        assert across_north > 40  # real profile, not the 0 fallback
+
+
+class TestAzimuthHelpers:
+    @pytest.mark.parametrize(
+        ("azimuth", "reference", "expected"),
+        [
+            (350, 10, 20),     # across north
+            (10, 350, 20),     # symmetric
+            (130, 130, 0),
+            (220, 130, 90),
+            (310, 130, 180),   # directly opposite
+            (-10, 10, 20),     # negative input normalizes
+        ],
+    )
+    def test_azimuth_delta(self, azimuth, reference, expected) -> None:
+        assert azimuth_delta(azimuth, reference) == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        ("azimuth", "az_min", "az_max", "expected"),
+        [
+            (130, 40, 220, True),     # plain window (face=130 defaults)
+            (300, 40, 220, False),
+            (40, 40, 220, True),      # bounds inclusive
+            (220, 40, 220, True),
+            (350, 280, 100, True),    # window crossing north
+            (10, 280, 100, True),
+            (180, 280, 100, False),
+            (350, -80, 100, True),    # raw face−90 default for face=10
+            (200, -80, 100, False),
+            (123, 0, 360, True),      # full circle = always in
+        ],
+    )
+    def test_azimuth_in_window(
+        self, azimuth, az_min, az_max, expected
+    ) -> None:
+        assert azimuth_in_window(azimuth, az_min, az_max) is expected
 
 
 class TestComputeWinterTarget:
@@ -263,6 +311,120 @@ class TestComputeSummerTarget:
         #  almost exactly — see plan doc for the calibration arithmetic.)
         assert result == 25.0
 
+    def test_phase_b_capped_at_cloudy_target(self) -> None:
+        """Past perpendicular the cutoff keeps opening (here 75%), but with
+        cloudy_target set, phase B rests at the perpendicular/cloudy value."""
+        result = compute_summer_target(
+            profile_angle=140, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+            cloudy_target=60,
+        )
+        # uncapped: 140−90+arccos(0.92·sin140°) = 50+53.78 = 103.78° → 75%
+        # capped at cloudy_target → 60
+        assert result == 60.0
+
+    def test_phase_b_below_cloudy_target_uncapped(self) -> None:
+        """Below the cap, phase B is unchanged — it ramps freely up to it."""
+        result = compute_summer_target(
+            profile_angle=120, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+            cloudy_target=60,
+        )
+        # cutoff = 50% (see test_high_profile_late_afternoon); 50 < 60 → 50
+        assert result == 50.0
+
+    def test_phase_b_cap_none_is_uncapped(self) -> None:
+        """No cloudy_target (default) preserves the raw cutoff curve."""
+        result = compute_summer_target(
+            profile_angle=140, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+        )
+        assert result == 75.0
+
+    def test_cap_does_not_affect_phase_a(self) -> None:
+        """The cap is phase-B only; phase A still ramps toward 100%."""
+        result = compute_summer_target(
+            profile_angle=50, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=85,
+            phase_a_intercept=40, cloudy_target=60,
+        )
+        # Linear: 40 + 60·50/85 = 75.29 → 75 (above cloudy_target, not capped)
+        assert result == 75.0
+
+    def test_degenerate_open_capped_when_cloudy_target_set(self) -> None:
+        """Degenerate 100% (negative blade) is also capped at cloudy_target."""
+        result = compute_summer_target(
+            profile_angle=82, calibration_offset=-30,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+            cloudy_target=60,
+        )
+        # side_b = −13.73 ≤ 0 → 100 uncapped → capped to 60
+        assert result == 60.0
+
+    def test_cap_bounded_by_perpendicular(self) -> None:
+        """cloudy_target above perpendicular can't push tracking past it:
+        blades stop casting shade past 90°, so the cap is min(cloudy,
+        perpendicular) — a cloudy_target=80 user doesn't get the leak back."""
+        result = compute_summer_target(
+            profile_angle=140, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+            cloudy_target=80,
+        )
+        # uncapped 75; perpendicular = 90/135 = 66.67 → cap quantize(66.67)=65
+        assert result == 65.0
+
+    def test_cap_is_quantized(self) -> None:
+        """The cap is quantized so the capped solar_target equals the
+        coordinator's quantized final (cloudy 66 → 65 at step 5)."""
+        result = compute_summer_target(
+            profile_angle=140, calibration_offset=0,
+            max_opening_angle=135, step_size=5,
+            pitch_ratio=0.92, flip_profile_threshold=80,
+            cloudy_target=66,
+        )
+        assert result == 65.0
+
+    def test_phase_b_monotonic_ramp_then_flat_at_cap(self) -> None:
+        """Afternoon sweep: target never decreases, ends flat at the cap."""
+        cap = 60.0  # quantize(min(60, 66.67), 5)
+        prev = 0.0
+        for profile in range(80, 151):
+            result = compute_summer_target(
+                profile_angle=float(profile), calibration_offset=0,
+                max_opening_angle=135, step_size=5,
+                pitch_ratio=0.92, flip_profile_threshold=80,
+                cloudy_target=60,
+            )
+            assert result >= prev, f"profile={profile}: {result} < {prev}"
+            assert result <= cap
+            prev = result
+        assert prev == cap  # the sweep reaches and rests at the cap
+
+
+class TestIsRecentSave:
+    NOW = datetime(2026, 6, 12, 15, 0, 0)
+
+    @pytest.mark.parametrize(
+        ("saved_at", "expected"),
+        [
+            ("2026-06-12T14:55:00", True),    # 5 min ago, same day
+            ("2026-06-12T14:00:00", True),    # exactly max age
+            ("2026-06-12T13:59:00", False),   # past max age
+            ("2026-06-11T14:55:00", False),   # yesterday, same clock time
+            ("2026-06-12T15:05:00", False),   # in the future (clock skew)
+            ("not-a-date", False),            # garbage
+            (None, False),                    # legacy store without saved_at
+        ],
+    )
+    def test_freshness_window(self, saved_at, expected) -> None:
+        assert is_recent_save(saved_at, self.NOW, 3600) is expected
+
 
 class TestComputePvThreshold:
     def test_low_elevation_no_floor(self) -> None:
@@ -314,6 +476,14 @@ class TestPanelCosAoi:
     def test_behind_panel_clamped(self) -> None:
         result = panel_cos_aoi(10, 0, 180, 30)
         assert result == 0.0
+
+    def test_north_facing_panel_wraparound(self) -> None:
+        """Panel az=10°: sun at az=350° must read the same as az=30°
+        (20° off-axis either side), not as behind the panel."""
+        west_of_north = panel_cos_aoi(40, 350, 10, 30)
+        east_of_north = panel_cos_aoi(40, 30, 10, 30)
+        assert west_of_north == pytest.approx(east_of_north)
+        assert west_of_north > 0.5
 
 
 class TestIsSunny:
@@ -374,6 +544,11 @@ class TestQuantize:
     def test_step_10(self) -> None:
         assert quantize(27, 10) == 30
         assert quantize(24, 10) == 20
+
+    def test_fractional_step(self) -> None:
+        """Fractional steps must not be truncated to int (67.5 ≠ 67)."""
+        assert quantize(67.5, 2.5) == 67.5
+        assert quantize(66, 2.5) == 65.0
 
 
 class TestAngleToPercent:

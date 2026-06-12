@@ -83,7 +83,7 @@
           "update_interval": "À quelle fréquence la boucle de contrôle vérifie le soleil et ajuste la pergola.",
           "step_size": "La position est arrondie aux multiples de cette valeur — réduit l'usure mécanique.",
           "deadband": "Changement minimum requis pour déclencher un mouvement (les petits ajustements sont ignorés).",
-          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Défaut 60 % : un bon compromis entre ombre et vue.",
+          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Défaut 60 % : un bon compromis entre ombre et vue. En été, elle plafonne aussi la cible de suivi du soleil : les lames montent jusqu'à cette position (jamais au-delà de la perpendiculaire) l'après-midi et s'y arrêtent.",
           "min_useful_percent": "En dessous de cette cible, la pergola passe en position nuageux/standby — évite les micro-mouvements au lever du jour.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause (utile quand la pergola mouillée ne doit pas bouger).",
           "min_elevation": "En dessous de cette élévation solaire (aube/crépuscule), la boucle de contrôle et la calibration matinale restent inactives."
@@ -189,7 +189,7 @@
           "update_interval": "À quelle fréquence la boucle de contrôle tourne.",
           "step_size": "La position est arrondie aux multiples de cette valeur pour réduire l'usure mécanique.",
           "deadband": "Changement minimum requis pour déclencher un mouvement.",
-          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition.",
+          "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Plafonne aussi la montée estivale de l'après-midi (jamais au-delà des lames perpendiculaires).",
           "min_useful_percent": "En dessous de cette cible, passe en position standby.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause.",
           "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."

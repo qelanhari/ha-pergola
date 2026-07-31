@@ -16,8 +16,7 @@
           "light_sensor_entity": "Outdoor light sensor",
           "humidity_entity": "Humidity sensor",
           "rain_entity": "Rain sensor",
-          "priority_lock_entity": "Safety lock originator sensor",
-          "priority_lock_timer_entity": "Safety lock timer sensor"
+          "priority_lock_entity": "Safety lock originator sensor"
         },
         "data_description": {
           "cover_entity": "The Home Assistant cover entity that tilts your pergola blades.",
@@ -25,8 +24,7 @@
           "light_sensor_entity": "Optional. Alternative to PV power for sunny/cloudy detection.",
           "humidity_entity": "Optional. Pauses the automation when humidity is too high (e.g. during a storm).",
           "rain_entity": "Optional. Any on/off entity that reports rain — a rain contact on a smart input, a weather binary sensor, or a helper you debounce yourself. While it reads on, the integration issues no movement commands at all: your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway.",
-          "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. The sensor must report exactly `rain`, `temperature` or `security` — any other state is ignored. `rain` holds position; `temperature` and `security` close the pergola. If you just have a plain rain sensor, use the Rain sensor field above instead.",
-          "priority_lock_timer_entity": "Optional. Goes with the safety lock — remaining duration of the active lock, in seconds. Must be a plain number: a `timer` entity or an `HH:MM:SS` duration won't parse and falls back to 60 s."
+          "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. The sensor must report exactly `rain`, `temperature` or `security`. **`temperature` and `security` close the pergola** — those are hardware-protection alarms. A `rain` origin is deliberately ignored: the Rain sensor above is the authority on rain, and this value typically lags it by many minutes, so trusting it could keep the pergola frozen. A reported lock is also used to recognise a command the controller refused, so that isn't mistaken for a mechanical fault."
         }
       },
       "geometry": {
@@ -148,8 +146,7 @@
           "light_sensor_entity": "Outdoor light sensor",
           "humidity_entity": "Humidity sensor",
           "rain_entity": "Rain sensor",
-          "priority_lock_entity": "Safety lock originator sensor",
-          "priority_lock_timer_entity": "Safety lock timer sensor"
+          "priority_lock_entity": "Safety lock originator sensor"
         },
         "data_description": {
           "cover_entity": "The Home Assistant cover entity that tilts your pergola blades.",
@@ -157,8 +154,7 @@
           "light_sensor_entity": "Optional. Alternative to PV power for sunny/cloudy detection.",
           "humidity_entity": "Optional. Pauses the automation when humidity is too high.",
           "rain_entity": "Optional. Any on/off entity that reports rain. While it reads on, the integration issues no movement commands at all — your pergola's controller closes the blades itself. Tune the release delay with **Rain clear delay** in the next step.",
-          "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. Must report exactly `rain`, `temperature` or `security`.",
-          "priority_lock_timer_entity": "Optional. Remaining duration of the active lock, in seconds (plain number)."
+          "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. `temperature` and `security` close the pergola; a `rain` origin is ignored in favour of the Rain sensor, which reacts far sooner."
         }
       },
       "geometry_basic": {

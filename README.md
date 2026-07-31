@@ -63,7 +63,7 @@ You can configure the integration with just the cover and sun sensors. Adding th
 - **Outdoor light sensor (lux)** — Same purpose as PV power, but using a luminosity reading. Use whichever you have; both work together if you have both.
 - **Humidity sensor** — Pauses the automation when humidity is too high. Useful for protecting motors during storms or heavy condensation.
 - **Rain sensor** — Any on/off entity that reports rain: a rain contact wired to a smart input, a weather binary sensor, or a helper you debounce yourself. While it's on the integration issues **no movement commands at all** — your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway. Release is delayed by `rain_clear_delay` (default 10 min, measured from the last moment rain was seen) so a shower that flickers dry for a minute doesn't resume tracking immediately; set it to `0` if your entity already debounces itself.
-- **Safety lock sensor** — For controllers (e.g. Somfy io) that expose a *priority lock* originator. The sensor must report exactly `rain`, `temperature` or `security`. Temperature and security close the pergola; rain holds. If all you have is a plain rain sensor, use the **Rain sensor** field above instead — it's simpler and doesn't need magic state strings.
+- **Safety lock sensor** — For controllers (e.g. Somfy io) that expose a *priority lock* originator, reporting exactly `rain`, `temperature` or `security`. **`temperature` and `security` close the pergola** — hardware-protection alarms no rain sensor can see. A `rain` origin is **ignored**: the rain sensor above is the authority, and this value typically lags it by many minutes and can stick, so honouring it risks freezing the pergola. Any reported lock is still used to recognise a command the controller refused, so a refusal isn't mistaken for a mechanical fault.
 
 ### Daily use
 
@@ -78,7 +78,7 @@ After install, the integration exposes one **device** with several entities:
 | `binary_sensor.pergola_calibrated_today` | Whether today's calibration has already happened. |
 | `binary_sensor.pergola_sunny` | Live sunny/cloudy state (only if PV/light sensor configured). |
 | `binary_sensor.pergola_rain_hold` | Lit while rain is suppressing all movement (only if a rain sensor is configured). |
-| `binary_sensor.pergola_movement_problem` | Lit when a recent movement failed to reach its target — check for mechanical blockage. |
+| `binary_sensor.pergola_movement_problem` | Lit when a recent movement failed to reach its target — check for mechanical blockage. A command the controller *refused* does not light it; its `lock_origin` attribute names any lock currently reported. |
 | `sensor.pergola_profile_angle` | The current sun profile angle relative to the pergola face (degrees). Useful for calibration. |
 | `sensor.pergola_solar_target` | The position the geometry says is optimal (%). |
 | `sensor.pergola_final_target` | The position actually commanded after all overrides (%). |
@@ -167,7 +167,7 @@ Each tick (`update_interval`, default 5 min) the coordinator:
 2. Computes a **profile angle** (sun's angle relative to the pergola face) and a **solar target** in % via `solar.py`.
 3. Applies overrides in priority order:
    - **Rain hold** active → issue nothing at all (the pergola's own controller handles closing).
-   - **Safety lock** active → close (temperature/security) or hold (rain).
+   - **Safety lock** `temperature` / `security` → close and hold. A `rain` origin is ignored (the rain sensor above already decided).
    - **Not-yet-calibrated** → don't move; wait for morning calibration.
    - **Humidity over threshold** → pause.
    - **Outside sun exposure window** (`sun_az_min` / `sun_az_max`) → fall back to `cloudy_target` (building itself shadows the pergola).
@@ -229,11 +229,17 @@ When sun elevation crosses `min_elevation` and `ready` is False:
 2. **Drift skip optimization**: if the current cover position is within `deadband` of `last_known_position`, no drift could have happened overnight — mark today as calibrated without moving. Saves wear on days the position would have been identical anyway.
 3. Otherwise, close fully, wait 45 s, verify position < 5%, mark calibrated.
 
-### Rain handling
+### Rain handling and safety locks
 
-Two independent paths, either or both:
+**The rain sensor is the single authority on whether commands may be sent.** The
+controller's own priority lock is a secondary signal — consulted for hardware
+alarms and to explain refusals, never to decide about rain. That split exists
+because the two disagree badly in practice: on one observed pair of showers the
+lock reported `rain` only *after* the rain had stopped, and on another it held
+`rain` for ~16 minutes past the rain sensor drying. Treating it as a blocker
+meant a value the controller was slow to clear could freeze the pergola.
 
-**`rain_entity`** (recommended) — any on/off entity. While it reads `on`, and for
+**`rain_entity`** — any on/off entity. While it reads `on`, and for
 `rain_clear_delay` minutes after rain was last seen, the control loop returns
 before issuing any command and morning calibration is deferred. The release is
 timed from the last moment the sensor was observed `on`, persisted as
@@ -246,14 +252,21 @@ Because nothing fires when the delay merely *expires*, release takes effect on t
 next control tick — so the effective hold is `rain_clear_delay` plus up to one
 `update_interval`. Erring long is the safe direction here.
 
-**`priority_lock_entity`** — a watchdog subscribed to the controller's own
-priority-lock originator sensor:
+**`priority_lock_entity`** — the controller's own priority-lock originator:
 
-- **Temperature** / **security** → close immediately and wait 75 s before resuming.
-- **Rain** → hold; no command is issued (re-asserting the tilt against a locked
-  controller only produced spurious `movement_problem` alerts).
+- **`temperature` / `security`** → close the pergola and hold. Idempotent: the
+  close is only commanded when the blades aren't already shut, so a lock lasting
+  hours doesn't re-issue it every tick.
+- **`rain`** → ignored for gating, per the above.
+- **Any origin** → a command that fails to take effect is logged as *refused*
+  and does **not** increment the failure counter or light
+  `binary_sensor.pergola_movement_problem`. That keeps the alert meaningful as a
+  genuine mechanical-blockage signal. A lock-free failure still counts.
 
-Both resume normal operation once clear.
+A lock appearing triggers an immediate re-evaluation rather than waiting for the
+next tick. There is no separate watchdog task (removed in v1.21.0, along with the
+`priority_lock_timer_entity` field it depended on — that sensor proved unreliable
+and nothing reads it now).
 
 ### Parameter reference
 

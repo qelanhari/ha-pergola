@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -131,3 +133,12 @@ class PergolaMovementProblemSensor(PergolaBaseBinarySensor):
     @property
     def is_on(self) -> bool:
         return not self.coordinator.movement_ok
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose any reported lock, so a refused command is legible.
+
+        A refusal no longer lights this sensor at all, but seeing the origin
+        here explains why a target isn't being reached.
+        """
+        return {"lock_origin": self.coordinator.lock_origin or None}

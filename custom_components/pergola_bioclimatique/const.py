@@ -28,6 +28,10 @@ CONF_LIGHT_SENSOR_ENTITY = "light_sensor_entity"
 CONF_HUMIDITY_ENTITY = "humidity_entity"
 CONF_RAIN_ENTITY = "rain_entity"
 CONF_PRIORITY_LOCK_ENTITY = "priority_lock_entity"
+# Unread since v1.21.0: the controller's lock timer proved unreliable and
+# hard to get updates on, so nothing derives timing from it any more. The
+# key is kept so existing entries importing it don't break; it is no longer
+# offered in the config flow.
 CONF_PRIORITY_LOCK_TIMER_ENTITY = "priority_lock_timer_entity"
 
 # Config keys — Step 2: Geometry
@@ -136,11 +140,23 @@ MODE_SUMMER = "Été"
 MODE_MANUAL = "Manuel"
 MODES = [MODE_WINTER, MODE_SUMMER, MODE_MANUAL]
 
-# Safety lock origins
+# Safety lock origins reported by the pergola controller (e.g. Somfy io).
 LOCK_RAIN = "rain"
 LOCK_TEMPERATURE = "temperature"
 LOCK_SECURITY = "security"
+
+# Any lock at all. Used only to tell "the controller refused this command"
+# apart from "the pergola is mechanically stuck" — see
+# PergolaCoordinator._async_move_and_verify.
 LOCK_ORIGINS = [LOCK_RAIN, LOCK_TEMPERATURE, LOCK_SECURITY]
+
+# Origins that make the integration close the pergola and stop moving it.
+# `rain` is deliberately absent: CONF_RAIN_ENTITY is the authority on rain,
+# and this sensor is too stale to trust for it — observed reporting `rain`
+# minutes *after* a shower ended, and holding it ~16 min past the rain
+# sensor going dry. Treating that as a block could wedge the pergola for as
+# long as the controller keeps the value stuck.
+LOCK_CLOSING_ORIGINS = (LOCK_TEMPERATURE, LOCK_SECURITY)
 
 # Platforms
 PLATFORMS = ["sensor", "binary_sensor", "select", "button"]

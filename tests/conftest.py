@@ -27,7 +27,6 @@ _DEFAULT_CONFIG: dict = {
     "humidity_entity": "sensor.humidity",
     "rain_entity": "binary_sensor.rain",
     "priority_lock_entity": "sensor.lock_originator",
-    "priority_lock_timer_entity": "sensor.lock_timer",
     # Step 2 — geometry (face_azimuth=130 drives sun_az_min/max defaults)
     "face_azimuth": 130,
     "max_opening_angle": 135,

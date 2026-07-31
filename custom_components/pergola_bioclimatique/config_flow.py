@@ -52,7 +52,6 @@ from .const import (
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
     CONF_PRIORITY_LOCK_ENTITY,
-    CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
     CONF_PV_OBSERVABLE_COS,
     CONF_PV_PANEL_AZIMUTH,
@@ -205,7 +204,6 @@ ENTITY_KEYS = (
     CONF_HUMIDITY_ENTITY,
     CONF_RAIN_ENTITY,
     CONF_PRIORITY_LOCK_ENTITY,
-    CONF_PRIORITY_LOCK_TIMER_ENTITY,
 )
 
 # The rain source is any on/off entity. Deliberately no device_class filter:
@@ -267,10 +265,9 @@ def _entity_schema(
         EntitySelector(EntitySelectorConfig(domain=RAIN_ENTITY_DOMAINS))
     )
 
-    for key in (CONF_PRIORITY_LOCK_ENTITY, CONF_PRIORITY_LOCK_TIMER_ENTITY):
-        schema[vol.Optional(key, **_suggest(key))] = EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        )
+    schema[
+        vol.Optional(CONF_PRIORITY_LOCK_ENTITY, **_suggest(CONF_PRIORITY_LOCK_ENTITY))
+    ] = EntitySelector(EntitySelectorConfig(domain="sensor"))
 
     return vol.Schema(schema)
 

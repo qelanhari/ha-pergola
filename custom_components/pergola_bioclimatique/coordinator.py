@@ -39,7 +39,6 @@ from .const import (
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
     CONF_PRIORITY_LOCK_ENTITY,
-    CONF_PRIORITY_LOCK_TIMER_ENTITY,
     CONF_PV_MAX_WATTS,
     CONF_PV_OBSERVABLE_COS,
     CONF_PV_PANEL_AZIMUTH,
@@ -86,10 +85,8 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     entry_value,
+    LOCK_CLOSING_ORIGINS,
     LOCK_ORIGINS,
-    LOCK_RAIN,
-    LOCK_SECURITY,
-    LOCK_TEMPERATURE,
     MODE_MANUAL,
     MODE_SUMMER,
     MODE_WINTER,
@@ -137,7 +134,6 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # unblocked cycle retries it. Not persisted — a restart re-arms the
         # elevation listener anyway.
         self._calibration_deferred: bool = False
-        self._watchdog_running: bool = False
         # Last moment the rain sensor was observed on (UTC). Persisted, so a
         # restart mid-shower resumes the remaining clear delay instead of
         # holding for a fresh full window. None = rain never seen.
@@ -195,6 +191,11 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._consecutive_failures == 0
 
     @property
+    def lock_origin(self) -> str:
+        """Lock the controller reports, or "" — for diagnostics on entities."""
+        return self._lock_origin()
+
+    @property
     def rain_hold(self) -> bool:
         """True while the rain sensor holds all movement.
 
@@ -220,6 +221,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return solar.rain_hold_active(
             state.state == STATE_ON, age, float(delay)
         )
+
+    def _lock_origin(self) -> str:
+        """Origin the pergola controller currently reports, or "".
+
+        Values outside ``LOCK_ORIGINS`` (notably `unknown`, which is what a
+        Somfy io box reports when idle) come back as "".
+        """
+        origin = self._get_state(self._entity(CONF_PRIORITY_LOCK_ENTITY))
+        return origin if origin in LOCK_ORIGINS else ""
 
     def _note_rain_state(self) -> bool:
         """Stamp ``_rain_last_on`` while the sensor reads on, return the hold.
@@ -440,6 +450,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug(
                 "Verify OK: target=%d%%, actual=%.0f%%", target, actual
             )
+        elif (origin := self._lock_origin()):
+            # The controller refused the command because it's locked — that's
+            # not a mechanical fault, so leave the failure counter and
+            # last_known_position alone. Don't reset the counter either: the
+            # move genuinely didn't happen.
+            _LOGGER.info(
+                "Move refused: target=%d%%, actual=%.0f%% — pergola reports "
+                "%s lock", target, actual, origin,
+            )
         else:
             self._consecutive_failures += 1
             _LOGGER.warning(
@@ -465,6 +484,11 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._consecutive_failures = 0
             self._last_known_position = 0.0
             _LOGGER.debug("Close verify OK: position=%.0f%%", pos)
+        elif (origin := self._lock_origin()):
+            _LOGGER.info(
+                "Close refused: position=%.0f%% — pergola reports %s lock",
+                pos, origin,
+            )
         else:
             self._consecutive_failures += 1
             _LOGGER.warning(
@@ -559,13 +583,30 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._save_state()
             return self._build_data()
 
-        # Check safety lock
-        lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
-        if lock_entity:
-            lock_origin = self._get_state(lock_entity)
-            if lock_origin in LOCK_ORIGINS:
-                _LOGGER.debug("Skip: safety lock active (%s)", lock_origin)
-                return self._build_data()
+        # Safety lock. Only temperature/security act here: they're hardware
+        # protection events the rain sensor can't see. A `rain` origin is
+        # ignored on purpose — CONF_RAIN_ENTITY above is the authority, and
+        # this sensor lags it badly (seen reporting `rain` after a shower had
+        # already ended, and holding it ~16 min past the rain sensor drying).
+        lock_origin = self._lock_origin()
+        if lock_origin in LOCK_CLOSING_ORIGINS:
+            cover_id = self._entity(CONF_COVER_ENTITY)
+            # Idempotent: the loop runs every few minutes, so only command a
+            # close if we aren't already closed.
+            if cover_id and current_pos >= 5:
+                _LOGGER.warning(
+                    "Safety lock (%s): closing pergola", lock_origin
+                )
+                await self._async_close_and_verify(cover_id)
+            else:
+                _LOGGER.debug(
+                    "Safety lock (%s): already closed, holding", lock_origin
+                )
+            return self._build_data()
+        if lock_origin:
+            _LOGGER.debug(
+                "Ignoring %s lock — rain sensor is the authority", lock_origin
+            )
 
         # Nothing blocks us any more — pick up a calibration that rain or a
         # safety lock deferred this morning. Without this the elevation
@@ -913,6 +954,12 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # would keep pushing the control tick further out. The rain_hold
         # sensor reads the property directly and only needs a state write.
         self.async_update_listeners()
+        # old_state None means the entity is only now being added (startup),
+        # not a real transition — don't run the control loop then. Doing so
+        # commanded a movement ~1s after boot, before the cover integration
+        # was ready to accept it and before the lock sensor had reported.
+        if old_state is None:
+            return
         if not self.rain_hold:
             self.hass.async_create_task(self.async_request_refresh())
 
@@ -931,16 +978,16 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._calibration_deferred = True
             return
 
-        lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
-        if lock_entity:
-            lock_origin = self._get_state(lock_entity)
-            if lock_origin in LOCK_ORIGINS:
-                _LOGGER.info(
-                    "Pergola: calibration deferred — safety lock (%s)",
-                    lock_origin,
-                )
-                self._calibration_deferred = True
-                return
+        # Only a closing lock defers calibration. A stale `rain` origin must
+        # not, or a stuck value would block calibration all day.
+        lock_origin = self._lock_origin()
+        if lock_origin in LOCK_CLOSING_ORIGINS:
+            _LOGGER.info(
+                "Pergola: calibration deferred — safety lock (%s)",
+                lock_origin,
+            )
+            self._calibration_deferred = True
+            return
 
         cover_id = self._entity(CONF_COVER_ENTITY)
         if not cover_id:
@@ -999,55 +1046,30 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.info("Pergola: midnight reset — locked until morning calibration")
         self.hass.async_create_task(self._save_state())
 
-    # --- Watchdog ---
+    # --- Safety lock ---
 
     @callback
     def _on_lock_change(self, event: Event) -> None:
-        new_state = event.data.get("new_state")
-        if new_state is None:
+        """Kick a refresh so a safety lock is acted on within seconds.
+
+        Replaces the old ``_async_watchdog`` loop (removed in v1.21.0). That
+        derived its period from ``priority_lock_timer``, which proved
+        unreliable, and it had three further problems: the task was never
+        cancelled on entry unload, it could overlap an in-flight
+        ``_async_move_and_verify``, and its ``initial_origin`` argument was
+        never read. The control loop already re-evaluates everything, so it
+        only needs to be told to run.
+        """
+        if event.data.get("new_state") is None:
             return
-        origin = new_state.state
-        if origin in LOCK_ORIGINS and not self._watchdog_running:
-            self.hass.async_create_task(self._async_watchdog(origin))
-
-    async def _async_watchdog(self, initial_origin: str) -> None:
-        """Safety watchdog: monitor lock state and respond."""
-        self._watchdog_running = True
-        cover_id = self._entity(CONF_COVER_ENTITY)
-        lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
-        timer_entity = self._entity(CONF_PRIORITY_LOCK_TIMER_ENTITY)
-
-        try:
-            while True:
-                origin = self._get_state(lock_entity)
-                if origin not in LOCK_ORIGINS:
-                    break
-
-                wait_time = max(
-                    60, int(self._get_float(timer_entity, 60))
-                )
-                await asyncio.sleep(wait_time + 5)
-
-                if not cover_id:
-                    continue
-
-                if origin in (LOCK_TEMPERATURE, LOCK_SECURITY):
-                    await self._async_close_and_verify(cover_id)
-                    await asyncio.sleep(75)  # extra wait for safety
-                elif origin == LOCK_RAIN:
-                    # A rain lock is a hold, not a movement: the control
-                    # unit has already closed the pergola and refuses
-                    # commands. Re-asserting the current tilt here only
-                    # fed _consecutive_failures and falsely lit the
-                    # movement_problem sensor.
-                    _LOGGER.debug("Rain lock: holding, no command issued")
-
-                await asyncio.sleep(5)
-
-            _LOGGER.info("Pergola: safety lock cleared, resuming normal operation")
-            await self.async_request_refresh()
-        finally:
-            self._watchdog_running = False
+        self.async_update_listeners()
+        # old_state None means the entity is only now being added (startup),
+        # not a real transition — don't run the control loop then. Doing so
+        # commanded a movement ~1s after boot, before the cover integration
+        # was ready to accept it.
+        if event.data.get("old_state") is None:
+            return
+        self.hass.async_create_task(self.async_request_refresh())
 
     # --- Data for entities ---
 
@@ -1063,4 +1085,5 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "mode": self._mode,
             "movement_ok": self.movement_ok,
             "rain_hold": self.rain_hold,
+            "lock_origin": self._lock_origin(),
         }

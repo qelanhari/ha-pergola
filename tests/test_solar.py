@@ -23,6 +23,7 @@ from solar import (  # noqa: E402
     is_sunny,
     panel_cos_aoi,
     quantize,
+    rain_hold_active,
     smooth_pv,
 )
 
@@ -424,6 +425,52 @@ class TestIsRecentSave:
     )
     def test_freshness_window(self, saved_at, expected) -> None:
         assert is_recent_save(saved_at, self.NOW, 3600) is expected
+
+
+class TestRainHoldActive:
+    """The hold that stops the integration commanding a pergola in the rain.
+
+    The control unit closes the blades on its own rain signal and refuses
+    ours, so the only job here is deciding *how long* to stay quiet.
+    """
+
+    @pytest.mark.parametrize("seconds", [0, 60, 600, 86400])
+    def test_on_always_holds(self, seconds: float) -> None:
+        """A wet sensor holds regardless of how long it's been wet."""
+        assert rain_hold_active(True, seconds, 10) is True
+
+    @pytest.mark.parametrize(
+        ("seconds_since_change", "expected"),
+        [
+            (0, True),      # just went dry
+            (300, True),    # 5 min into a 10 min delay
+            (599, True),    # one second short of release
+            (600, False),   # exactly the delay — released
+            (601, False),   # past the delay
+            (86400, False),  # dry since yesterday
+        ],
+    )
+    def test_clear_delay_window(
+        self, seconds_since_change: float, expected: bool
+    ) -> None:
+        assert rain_hold_active(
+            False, seconds_since_change, 10
+        ) is expected
+
+    @pytest.mark.parametrize("seconds", [0, 1, 600, 86400])
+    def test_zero_delay_is_passthrough(self, seconds: float) -> None:
+        """delay=0 trusts the entity — for a source that debounces itself."""
+        assert rain_hold_active(False, seconds, 0) is False
+        assert rain_hold_active(True, seconds, 0) is True
+
+    def test_negative_delay_treated_as_zero(self) -> None:
+        """Guard against a hand-edited entry storing a negative delay."""
+        assert rain_hold_active(False, 0, -5) is False
+
+    def test_fractional_delay(self) -> None:
+        """Delay need not be whole minutes."""
+        assert rain_hold_active(False, 20, 0.5) is True
+        assert rain_hold_active(False, 40, 0.5) is False
 
 
 class TestComputePvThreshold:

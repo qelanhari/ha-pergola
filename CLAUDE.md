@@ -46,7 +46,7 @@ The integration is a single-device integration built around one `DataUpdateCoord
 
 - **`coordinator.py` (`PergolaCoordinator`)** — the brain. Owns the periodic control loop, persisted state (via `homeassistant.helpers.storage.Store`), state-change subscriptions for sun/PV/humidity/lock entities, morning calibration sequence, safety watchdog, and cloud-state hysteresis. All entities (`sensor`, `binary_sensor`, `select`, `button`) are thin views over `coordinator.data`.
 - **`solar.py`** — pure functions: `compute_profile_angle`, `compute_winter_target`, `compute_summer_target`, `compute_pv_threshold`, `panel_cos_aoi`, `is_sunny`, `smooth_pv`, `quantize`, `angle_to_percent`. No Home Assistant imports — this is what the test suite exercises.
-- **`config_flow.py`** — 4-step setup wizard (entities → geometry → operation → cloud detection) plus an Options flow that mirrors steps 2–4. Steps 2 and 4 now have a **basic / advanced split**: the basic form shows only the essential field (`face_azimuth` / `pv_max_watts`) plus a `Show advanced settings` toggle. Ticking it transitions to a sub-step exposing every knob. When left unticked, the flow writes every `DEFAULT_*` value silently so the stored entry is byte-identical to a legacy default install. The Options flow auto-opens in the advanced view when any stored field already differs from its default. Updating options triggers `async_reload` of the entry (see `__init__.py::_async_update_listener`).
+- **`config_flow.py`** — 4-step setup wizard (entities → geometry → operation → cloud detection) plus an Options flow that mirrors **all four** steps (the `entities` step was added in v1.20 so source sensors can be changed without recreating the entry; `ENTITY_KEYS` is the list it rewrites wholesale so clearing a field isn't undone by the `entry.data` fallback). Steps 2 and 4 now have a **basic / advanced split**: the basic form shows only the essential field (`face_azimuth` / `pv_max_watts`) plus a `Show advanced settings` toggle. Ticking it transitions to a sub-step exposing every knob. When left unticked, the flow writes every `DEFAULT_*` value silently so the stored entry is byte-identical to a legacy default install. The Options flow auto-opens in the advanced view when any stored field already differs from its default. Updating options triggers `async_reload` of the entry (see `__init__.py::_async_update_listener`).
 - **`const.py`** — every `CONF_*` key, `DEFAULT_*` value, and `PLATFORMS` list. New config fields must be added here, in `config_flow.py` (both basic-or-advanced schema and `_geometry_defaults` / `_cloud_defaults` if the field belongs to one of the gated steps), in `coordinator.py`, and in both `strings.json` and `translations/{en,fr}.json`.
 
 ### Control loop logic
@@ -56,7 +56,8 @@ Each tick (`CONF_UPDATE_INTERVAL`, default 5 min) the coordinator:
 1. Reads sun azimuth/elevation, PV/light, humidity, safety-lock states from `hass.states`.
 2. Computes a `profile_angle` and a `solar_target` percent via `solar.py` (winter or summer mode).
 3. Applies overrides in priority order:
-   - **Safety lock** active (rain/temperature/security) — rain holds, temp/security closes.
+   - **Rain hold** (`CONF_RAIN_ENTITY` on, or off for less than `CONF_RAIN_CLEAR_DELAY` minutes) — return before any service call. The pergola's own controller receives the rain signal and closes itself, and refuses our commands; the only job here is to stop talking to it. Release is timed off the entity's `last_changed` (`solar.rain_hold_active`), so nothing extra is persisted.
+   - **Safety lock** active (rain/temperature/security) — rain holds (no command issued), temp/security closes.
    - **Not-yet-calibrated** — skip movement, await morning calibration.
    - **Humidity over threshold** — skip movement.
    - **Outside sun exposure window** (`CONF_SUN_AZ_MIN` / `CONF_SUN_AZ_MAX`, defaults `face_azimuth ± 90°`) — building itself shadows the pergola; fall back to `cloudy_target` directly without computing a solar target.
@@ -77,7 +78,7 @@ State that must survive restarts (last calibration date, cloud hysteresis state,
 
 ### Morning calibration
 
-When sun elevation crosses `CONF_MIN_ELEVATION` for the first time each day and the integration is not yet `_pergola_ready`:
+When sun elevation crosses `CONF_MIN_ELEVATION` for the first time each day and the integration is not yet `_pergola_ready`. If rain or a safety lock is active it sets `_calibration_deferred` and bails; the next unblocked control cycle retries it (the elevation listener only fires on a threshold crossing, so without the retry the pergola would stay not-ready all day). Otherwise:
 
 1. **Drift-skip optimization**: compare current cover position to the persisted `_last_known_position` (the position last successfully commanded by the integration). If they match within `deadband`, no drift could have happened overnight → mark today as calibrated without moving. Avoids pointless close-and-reopen cycles when yesterday's evening target and today's morning target are both `cloudy_target`.
 2. Otherwise → close fully (sends `close_cover_tilt`), wait 45 s, verify position < 5%, mark calibrated.
@@ -104,7 +105,8 @@ The cloud hysteresis timer (`sunny_changed_at`) is deliberately **not** persiste
 
 ## Conventions
 
-- All user-visible strings live in `strings.json` and both `translations/en.json` and `translations/fr.json` — keep all three in sync when adding/renaming options.
+- All user-visible strings live in `strings.json` and both `translations/en.json` and `translations/fr.json` — keep all three in sync when adding/renaming options. `strings.json` and `translations/en.json` are byte-identical; edit one and copy.
+- Read config values through `const.entry_value(entry, key)` (options-then-data), never `entry.data.get()` — entities are editable at runtime, so a direct `entry.data` read silently ignores Options changes.
 - `solar.py` must remain free of `homeassistant` imports so the test suite can import it standalone.
 - Prefer adding pure logic to `solar.py` (testable) over `coordinator.py` (requires HA runtime to exercise).
 - **Defaults are load-bearing**: the integration is shipped with one supported "preset" — the current `DEFAULT_*` values, tuned by the maintainer's observation of a real pergola. Changing a default is a behavior change that needs strong justification (and probably a version bump). When adding a new config field, pick a default that preserves existing behavior when the new field is absent.

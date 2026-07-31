@@ -316,7 +316,10 @@ class TestCloudHasNonDefaults:
 # Storage equivalence — the central guarantee of the refactor
 # ---------------------------------------------------------------------------
 
-# Defaults for the operation step (step 3, no basic/advanced gate)
+# Defaults for the operation step (step 3, no basic/advanced gate).
+# Appears on both sides of the equivalence comparison: the guarantee under
+# test is that the basic/advanced *gate* on steps 2 and 4 stores what a
+# default install stores, not that the operation step never gains a field.
 _OPERATION_DEFAULTS = {
     const.CONF_UPDATE_INTERVAL: const.DEFAULT_UPDATE_INTERVAL,
     const.CONF_STEP_SIZE: const.DEFAULT_STEP_SIZE,
@@ -325,6 +328,7 @@ _OPERATION_DEFAULTS = {
     const.CONF_MIN_USEFUL_PERCENT: const.DEFAULT_MIN_USEFUL_PERCENT,
     const.CONF_HUMIDITY_MAX: const.DEFAULT_HUMIDITY_MAX,
     const.CONF_MIN_ELEVATION: const.DEFAULT_MIN_ELEVATION,
+    const.CONF_RAIN_CLEAR_DELAY: const.DEFAULT_RAIN_CLEAR_DELAY,
 }
 
 

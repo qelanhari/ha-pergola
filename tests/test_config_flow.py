@@ -57,6 +57,8 @@ from custom_components.pergola_bioclimatique.const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_RAIN_CLEAR_DELAY,
+    CONF_RAIN_ENTITY,
     CONF_STEP_SIZE,
     CONF_SUMMER_BLADE_OFFSET,
     CONF_SUN_AZ_MAX,
@@ -85,10 +87,12 @@ from custom_components.pergola_bioclimatique.const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_STEP_SIZE,
     DEFAULT_SUMMER_BLADE_OFFSET,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    entry_value,
 )
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -158,6 +162,23 @@ def _step1_payload(*, pv: str | None = None, light: str | None = None) -> dict:
     return data
 
 
+def _step2_advanced_payload(overrides: dict | None = None) -> dict:
+    """Full geometry_advanced payload at defaults, with CONF_*-keyed overrides."""
+    payload = {
+        CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+        CONF_MAX_OPENING_ANGLE: DEFAULT_MAX_OPENING_ANGLE,
+        CONF_CALIBRATION_OFFSET: DEFAULT_CALIBRATION_OFFSET,
+        CONF_BLADE_PITCH_RATIO: DEFAULT_BLADE_PITCH_RATIO,
+        CONF_FLIP_PROFILE_THRESHOLD: DEFAULT_FLIP_PROFILE_THRESHOLD,
+        CONF_SUMMER_BLADE_OFFSET: DEFAULT_SUMMER_BLADE_OFFSET,
+        CONF_PHASE_A_INTERCEPT: DEFAULT_PHASE_A_INTERCEPT,
+        CONF_SUN_AZ_MIN: DEFAULT_FACE_AZIMUTH - 90,
+        CONF_SUN_AZ_MAX: DEFAULT_FACE_AZIMUTH + 90,
+    }
+    payload.update(overrides or {})
+    return payload
+
+
 def _step3_default_operation() -> dict:
     """Operation step accepts defaults — no basic/advanced split here."""
     return {
@@ -168,6 +189,7 @@ def _step3_default_operation() -> dict:
         CONF_MIN_USEFUL_PERCENT: DEFAULT_MIN_USEFUL_PERCENT,
         CONF_HUMIDITY_MAX: DEFAULT_HUMIDITY_MAX,
         CONF_MIN_ELEVATION: DEFAULT_MIN_ELEVATION,
+        CONF_RAIN_CLEAR_DELAY: DEFAULT_RAIN_CLEAR_DELAY,
     }
 
 
@@ -196,6 +218,7 @@ def _expected_default_data(face_az: int, *, with_cloud: bool) -> dict:
         CONF_MIN_USEFUL_PERCENT: DEFAULT_MIN_USEFUL_PERCENT,
         CONF_HUMIDITY_MAX: DEFAULT_HUMIDITY_MAX,
         CONF_MIN_ELEVATION: DEFAULT_MIN_ELEVATION,
+        CONF_RAIN_CLEAR_DELAY: DEFAULT_RAIN_CLEAR_DELAY,
     }
     if with_cloud:
         data[CONF_PV_POWER_ENTITY] = "sensor.pv_power"
@@ -473,6 +496,28 @@ def _full_default_entry_data(*, with_cloud: bool = False) -> dict:
     return _expected_default_data(DEFAULT_FACE_AZIMUTH, with_cloud=with_cloud)
 
 
+def _options_entities_payload(**overrides) -> dict:
+    """What the Options `entities` step submits: the required entities, plus
+    whatever optional slots the test cares about. Omitted optional keys model
+    a user leaving (or clearing) the field — HA drops empty selectors."""
+    payload = {
+        CONF_COVER_ENTITY: "cover.pergola",
+        CONF_SUN_AZIMUTH_ENTITY: SUN_AZIMUTH_ENTITY,
+        CONF_SUN_ELEVATION_ENTITY: SUN_ELEVATION_ENTITY,
+    }
+    payload.update(overrides)
+    return payload
+
+
+async def _walk_to_geometry(hass: HomeAssistant, entry_id: str, **entity_overrides):
+    """Open Options and clear the `entities` step, returning the next result."""
+    result = await hass.config_entries.options.async_init(entry_id)
+    assert result["step_id"] == "entities"
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], _options_entities_payload(**entity_overrides)
+    )
+
+
 class TestOptionsFlow:
     """Verify the Options flow opens in the right view based on stored data.
 
@@ -480,10 +525,9 @@ class TestOptionsFlow:
     in the advanced view, not silently re-defaulted to the basic.
     """
 
-    async def test_default_entry_opens_basic_geometry(
-        self, hass: HomeAssistant
-    ) -> None:
-        """An entry with all defaults → Options opens in `geometry_basic`."""
+    async def test_opens_on_entities_step(self, hass: HomeAssistant) -> None:
+        """Options starts at `entities` so source sensors can be changed
+        without deleting and recreating the entry."""
         entry = MockConfigEntry(
             domain=DOMAIN,
             data=_full_default_entry_data(),
@@ -494,19 +538,35 @@ class TestOptionsFlow:
 
         result = await hass.config_entries.options.async_init(entry.entry_id)
         assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "entities"
+
+    async def test_default_entry_opens_basic_geometry(
+        self, hass: HomeAssistant
+    ) -> None:
+        """An entry with all defaults → geometry opens in `geometry_basic`."""
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data=_full_default_entry_data(),
+            options={},
+            title="Pergola",
+        )
+        entry.add_to_hass(hass)
+
+        result = await _walk_to_geometry(hass, entry.entry_id)
+        assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "geometry_basic"
 
     async def test_customized_geometry_opens_advanced(
         self, hass: HomeAssistant
     ) -> None:
-        """An entry with a non-default blade_pitch_ratio → Options opens
+        """An entry with a non-default blade_pitch_ratio → geometry opens
         directly in `geometry_advanced`, with the customized value visible."""
         data = _full_default_entry_data()
         data[CONF_BLADE_PITCH_RATIO] = 0.88  # non-default
         entry = MockConfigEntry(domain=DOMAIN, data=data, options={}, title="Pergola")
         entry.add_to_hass(hass)
 
-        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await _walk_to_geometry(hass, entry.entry_id)
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "geometry_advanced"
 
@@ -520,8 +580,10 @@ class TestOptionsFlow:
         entry = MockConfigEntry(domain=DOMAIN, data=data, options={}, title="Pergola")
         entry.add_to_hass(hass)
 
-        # Walk past geometry_basic and operation to get to the cloud branch.
-        result = await hass.config_entries.options.async_init(entry.entry_id)
+        # Walk past entities, geometry_basic and operation to the cloud branch.
+        result = await _walk_to_geometry(
+            hass, entry.entry_id, **{CONF_PV_POWER_ENTITY: "sensor.pv_power"}
+        )
         assert result["step_id"] == "geometry_basic"
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -547,7 +609,7 @@ class TestOptionsFlow:
         entry = MockConfigEntry(domain=DOMAIN, data=data, options={}, title="Pergola")
         entry.add_to_hass(hass)
 
-        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await _walk_to_geometry(hass, entry.entry_id)
         assert result["step_id"] == "geometry_basic"
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -561,5 +623,72 @@ class TestOptionsFlow:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _step3_default_operation()
         )
-        # No PV/light entity in entry.data → save immediately
+        # No PV/light entity → save immediately
         assert result["type"] == FlowResultType.CREATE_ENTRY
+
+    async def test_adding_rain_entity_persists_to_options(
+        self, hass: HomeAssistant
+    ) -> None:
+        """The whole point of the entities step: attach a rain sensor to an
+        existing entry without touching the tuned geometry."""
+        data = _full_default_entry_data(with_cloud=False)
+        data[CONF_PHASE_A_INTERCEPT] = 72  # user's tuned value must survive
+        entry = MockConfigEntry(domain=DOMAIN, data=data, options={}, title="Pergola")
+        entry.add_to_hass(hass)
+
+        result = await _walk_to_geometry(
+            hass,
+            entry.entry_id,
+            **{CONF_RAIN_ENTITY: "binary_sensor.rain"},
+        )
+        # phase_a_intercept is off-default → straight to advanced geometry
+        assert result["step_id"] == "geometry_advanced"
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            _step2_advanced_payload({CONF_PHASE_A_INTERCEPT: 72}),
+        )
+        assert result["step_id"] == "operation"
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _step3_default_operation()
+        )
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+
+        await hass.async_block_till_done()
+        assert entry.options[CONF_RAIN_ENTITY] == "binary_sensor.rain"
+        assert entry.options[CONF_PHASE_A_INTERCEPT] == 72
+        assert entry.options[CONF_RAIN_CLEAR_DELAY] == DEFAULT_RAIN_CLEAR_DELAY
+
+    async def test_clearing_an_entity_sticks(self, hass: HomeAssistant) -> None:
+        """A cleared optional entity must not be resurrected from entry.data.
+
+        HA omits empty optional selectors from user_input, and the coordinator
+        reads options-then-data — so the entities step has to write the key as
+        None explicitly rather than just update() what came back.
+        """
+        data = _full_default_entry_data(with_cloud=False)
+        data[CONF_RAIN_ENTITY] = "binary_sensor.old_rain"
+        entry = MockConfigEntry(domain=DOMAIN, data=data, options={}, title="Pergola")
+        entry.add_to_hass(hass)
+
+        # Submit the entities step without the rain key at all.
+        result = await _walk_to_geometry(hass, entry.entry_id)
+        assert result["step_id"] == "geometry_basic"
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_PERGOLA_MODEL: DEFAULT_PERGOLA_MODEL,
+                CONF_FACE_AZIMUTH: DEFAULT_FACE_AZIMUTH,
+                "advanced": False,
+            },
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _step3_default_operation()
+        )
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+
+        await hass.async_block_till_done()
+        assert CONF_RAIN_ENTITY in entry.options
+        assert entry.options[CONF_RAIN_ENTITY] is None
+        # entry.data still holds the stale value; the merged read must not use it
+        assert entry.data[CONF_RAIN_ENTITY] == "binary_sensor.old_rain"
+        assert entry_value(entry, CONF_RAIN_ENTITY) is None

@@ -60,6 +60,8 @@ from .const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_RAIN_CLEAR_DELAY,
+    CONF_RAIN_ENTITY,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_PHASE_A_INTERCEPT,
     CONF_STEP_SIZE,
@@ -89,6 +91,7 @@ from .const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_PHASE_A_INTERCEPT,
     DEFAULT_SUMMER_BLADE_OFFSET,
@@ -190,52 +193,85 @@ def _cloud_has_non_defaults(values: dict[str, Any]) -> bool:
     return False
 
 
-def _entity_schema(sun_defaults: dict[str, str] | None = None) -> vol.Schema:
-    """Step 1: Entity selection. Auto-fills sun entities if detected."""
+# Every entity key the flows can set. Also the authoritative list the
+# Options flow rewrites wholesale, so clearing a field actually sticks
+# (see PergolaBioclimatiqueOptionsFlow.async_step_entities).
+ENTITY_KEYS = (
+    CONF_COVER_ENTITY,
+    CONF_SUN_AZIMUTH_ENTITY,
+    CONF_SUN_ELEVATION_ENTITY,
+    CONF_PV_POWER_ENTITY,
+    CONF_LIGHT_SENSOR_ENTITY,
+    CONF_HUMIDITY_ENTITY,
+    CONF_RAIN_ENTITY,
+    CONF_PRIORITY_LOCK_ENTITY,
+    CONF_PRIORITY_LOCK_TIMER_ENTITY,
+)
+
+# The rain source is any on/off entity. Deliberately no device_class filter:
+# a rain contact wired to a Shelly input reports device_class "power", so
+# filtering on "moisture" would hide the very sensor this is for.
+RAIN_ENTITY_DOMAINS = ["binary_sensor", "input_boolean", "switch"]
+
+
+def _entity_schema(
+    sun_defaults: dict[str, str] | None = None,
+    current: dict[str, Any] | None = None,
+    include_name: bool = True,
+) -> vol.Schema:
+    """Entity selection form, shared by the install and Options flows.
+
+    Install flow passes ``sun_defaults`` to pre-fill the Sun integration
+    entities. The Options flow passes ``current`` to pre-fill every field
+    from the stored entry, and ``include_name=False`` (renaming the entry
+    isn't offered there). Options pre-fill uses ``suggested_value`` rather
+    than ``default`` so a field the user clears round-trips as empty
+    instead of snapping back to the stored value.
+    """
     sd = sun_defaults or {}
-    schema: dict[vol.Marker, Any] = {
-        vol.Required(CONF_NAME, default="Pergola"): str,
-        vol.Required(CONF_COVER_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="cover")
-        ),
-    }
+    cur = current or {}
 
-    # Sun entities: pre-fill if Sun integration detected
-    if CONF_SUN_AZIMUTH_ENTITY in sd:
-        schema[vol.Required(
-            CONF_SUN_AZIMUTH_ENTITY, default=sd[CONF_SUN_AZIMUTH_ENTITY]
-        )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-    else:
-        schema[vol.Required(CONF_SUN_AZIMUTH_ENTITY)] = EntitySelector(
+    def _suggest(key: str) -> dict[str, Any]:
+        value = cur.get(key)
+        if not value:
+            return {}
+        return {"description": {"suggested_value": value}}
+
+    schema: dict[vol.Marker, Any] = {}
+    if include_name:
+        schema[vol.Required(CONF_NAME, default="Pergola")] = str
+    schema[vol.Required(CONF_COVER_ENTITY, **_suggest(CONF_COVER_ENTITY))] = (
+        EntitySelector(EntitySelectorConfig(domain="cover"))
+    )
+
+    # Sun entities: pre-fill from the stored entry, else if Sun detected
+    for key in (CONF_SUN_AZIMUTH_ENTITY, CONF_SUN_ELEVATION_ENTITY):
+        if key in cur:
+            marker = vol.Required(key, **_suggest(key))
+        elif key in sd:
+            marker = vol.Required(key, default=sd[key])
+        else:
+            marker = vol.Required(key)
+        schema[marker] = EntitySelector(EntitySelectorConfig(domain="sensor"))
+
+    for key in (
+        CONF_PV_POWER_ENTITY,
+        CONF_LIGHT_SENSOR_ENTITY,
+        CONF_HUMIDITY_ENTITY,
+    ):
+        schema[vol.Optional(key, **_suggest(key))] = EntitySelector(
             EntitySelectorConfig(domain="sensor")
         )
 
-    if CONF_SUN_ELEVATION_ENTITY in sd:
-        schema[vol.Required(
-            CONF_SUN_ELEVATION_ENTITY, default=sd[CONF_SUN_ELEVATION_ENTITY]
-        )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-    else:
-        schema[vol.Required(CONF_SUN_ELEVATION_ENTITY)] = EntitySelector(
+    schema[vol.Optional(CONF_RAIN_ENTITY, **_suggest(CONF_RAIN_ENTITY))] = (
+        EntitySelector(EntitySelectorConfig(domain=RAIN_ENTITY_DOMAINS))
+    )
+
+    for key in (CONF_PRIORITY_LOCK_ENTITY, CONF_PRIORITY_LOCK_TIMER_ENTITY):
+        schema[vol.Optional(key, **_suggest(key))] = EntitySelector(
             EntitySelectorConfig(domain="sensor")
         )
 
-    schema.update({
-        vol.Optional(CONF_PV_POWER_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        ),
-        vol.Optional(CONF_LIGHT_SENSOR_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        ),
-        vol.Optional(CONF_HUMIDITY_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        ),
-        vol.Optional(CONF_PRIORITY_LOCK_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        ),
-        vol.Optional(CONF_PRIORITY_LOCK_TIMER_ENTITY): EntitySelector(
-            EntitySelectorConfig(domain="sensor")
-        ),
-    })
     return vol.Schema(schema)
 
 
@@ -437,6 +473,15 @@ def _operation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 NumberSelectorConfig(
                     min=5, max=40, step=1, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="°",
+                )
+            ),
+            vol.Required(
+                CONF_RAIN_CLEAR_DELAY,
+                default=d.get(CONF_RAIN_CLEAR_DELAY, DEFAULT_RAIN_CLEAR_DELAY),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=60, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="min",
                 )
             ),
         }
@@ -734,6 +779,32 @@ class PergolaBioclimatiqueOptionsFlow(OptionsFlowWithConfigEntry):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> Any:
+        """Entity selection — the first Options step."""
+        return await self.async_step_entities(user_input)
+
+    async def async_step_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        """Reconfigure the source entities without recreating the entry."""
+        if user_input is not None:
+            # Write every entity key explicitly, including the ones the
+            # user cleared: Home Assistant omits empty optional fields from
+            # user_input, and the coordinator falls back to entry.data, so
+            # a bare update() would silently resurrect a cleared entity.
+            for key in ENTITY_KEYS:
+                self._options[key] = user_input.get(key)
+            return await self.async_step_geometry()
+
+        return self.async_show_form(
+            step_id="entities",
+            data_schema=_entity_schema(
+                current=self._current(), include_name=False
+            ),
+        )
+
+    async def async_step_geometry(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
         """Geometry step — basic by default; advanced if any field was customized."""
         if _geometry_has_non_defaults(self._current()):
             return await self.async_step_geometry_advanced()
@@ -783,9 +854,12 @@ class PergolaBioclimatiqueOptionsFlow(OptionsFlowWithConfigEntry):
     ) -> Any:
         if user_input is not None:
             self._options.update(user_input)
-            has_cloud_sensor = self.config_entry.data.get(
-                CONF_PV_POWER_ENTITY
-            ) or self.config_entry.data.get(CONF_LIGHT_SENSOR_ENTITY)
+            # Read merged, not from entry.data: the entities step earlier in
+            # this same flow may have just added or removed a cloud sensor.
+            current = self._current()
+            has_cloud_sensor = current.get(CONF_PV_POWER_ENTITY) or current.get(
+                CONF_LIGHT_SENSOR_ENTITY
+            )
             if not has_cloud_sensor:
                 return self.async_create_entry(title="", data=self._options)
             if _cloud_has_non_defaults(self._current()):

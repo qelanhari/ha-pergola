@@ -1,6 +1,23 @@
 """Constants for the Pergola Bioclimatique integration."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+
 DOMAIN = "pergola_bioclimatique"
+
+
+def entry_value(entry: ConfigEntry, key: str, default: Any = None) -> Any:
+    """Read a config value, options taking precedence over install data.
+
+    The single source of truth for that precedence. Anything reading
+    ``entry.data`` directly would miss values the Options flow changed —
+    which is every entity now that entities are editable at runtime.
+    """
+    return entry.options.get(key, entry.data.get(key, default))
 
 # Config keys — Step 1: Entity selection
 CONF_COVER_ENTITY = "cover_entity"
@@ -9,6 +26,7 @@ CONF_SUN_ELEVATION_ENTITY = "sun_elevation_entity"
 CONF_PV_POWER_ENTITY = "pv_power_entity"
 CONF_LIGHT_SENSOR_ENTITY = "light_sensor_entity"
 CONF_HUMIDITY_ENTITY = "humidity_entity"
+CONF_RAIN_ENTITY = "rain_entity"
 CONF_PRIORITY_LOCK_ENTITY = "priority_lock_entity"
 CONF_PRIORITY_LOCK_TIMER_ENTITY = "priority_lock_timer_entity"
 
@@ -32,6 +50,7 @@ CONF_CLOUDY_TARGET = "cloudy_target"
 CONF_MIN_USEFUL_PERCENT = "min_useful_percent"
 CONF_HUMIDITY_MAX = "humidity_max"
 CONF_MIN_ELEVATION = "min_elevation"
+CONF_RAIN_CLEAR_DELAY = "rain_clear_delay"
 
 # Config keys — Step 4: Cloud detection
 CONF_PV_MAX_WATTS = "pv_max_watts"
@@ -95,6 +114,9 @@ DEFAULT_CLOUDY_TARGET = 60
 DEFAULT_MIN_USEFUL_PERCENT = 9
 DEFAULT_HUMIDITY_MAX = 80
 DEFAULT_MIN_ELEVATION = 20
+# Minutes the rain hold stays active after the rain sensor goes dry.
+# 0 = trust the entity as-is (for a source that debounces itself).
+DEFAULT_RAIN_CLEAR_DELAY = 10
 
 # Defaults — Cloud detection
 DEFAULT_PV_MAX_WATTS = 3000

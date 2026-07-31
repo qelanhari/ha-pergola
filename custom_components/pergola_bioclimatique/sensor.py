@@ -13,7 +13,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_PV_POWER_ENTITY, CONF_LIGHT_SENSOR_ENTITY, DOMAIN
+from .const import (
+    CONF_PV_POWER_ENTITY,
+    CONF_LIGHT_SENSOR_ENTITY,
+    DOMAIN,
+    entry_value,
+)
 from .coordinator import PergolaCoordinator
 
 
@@ -30,8 +35,8 @@ async def async_setup_entry(
         PergolaFinalTargetSensor(coordinator, entry),
     ]
 
-    has_cloud_sensor = entry.data.get(CONF_PV_POWER_ENTITY) or entry.data.get(
-        CONF_LIGHT_SENSOR_ENTITY
+    has_cloud_sensor = entry_value(entry, CONF_PV_POWER_ENTITY) or entry_value(
+        entry, CONF_LIGHT_SENSOR_ENTITY
     )
     if has_cloud_sensor:
         entities.append(PergolaPvSmoothSensor(coordinator, entry))

@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import (
     async_track_state_change_event,
@@ -18,6 +18,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 
 from . import solar
 from .const import (
@@ -46,6 +47,8 @@ from .const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_RAIN_CLEAR_DELAY,
+    CONF_RAIN_ENTITY,
     CONF_FLIP_PROFILE_THRESHOLD,
     CONF_PHASE_A_INTERCEPT,
     CONF_STEP_SIZE,
@@ -74,6 +77,7 @@ from .const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
     DEFAULT_PHASE_A_INTERCEPT,
     DEFAULT_STEP_SIZE,
@@ -81,8 +85,11 @@ from .const import (
     DEFAULT_SUN_AZ_HALF_WIDTH,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    entry_value,
     LOCK_ORIGINS,
     LOCK_RAIN,
+    LOCK_SECURITY,
+    LOCK_TEMPERATURE,
     MODE_MANUAL,
     MODE_SUMMER,
     MODE_WINTER,
@@ -126,6 +133,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._pergola_ready: bool = False
         self._descent_calibrated: bool = False
         self._calibrating: bool = False
+        # Set when rain or a safety lock turned calibration away; the next
+        # unblocked cycle retries it. Not persisted — a restart re-arms the
+        # elevation listener anyway.
+        self._calibration_deferred: bool = False
         self._watchdog_running: bool = False
         self._consecutive_failures: int = 0
         self._first_run: bool = True
@@ -179,11 +190,33 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def movement_ok(self) -> bool:
         return self._consecutive_failures == 0
 
+    @property
+    def rain_hold(self) -> bool:
+        """True while the rain sensor holds all movement.
+
+        The pergola control unit gets the rain signal directly and closes
+        itself, so the integration's only job is to stop issuing commands
+        (which the unit would refuse anyway) until it's dry again.
+        """
+        entity_id = self._entity(CONF_RAIN_ENTITY)
+        if not entity_id:
+            return False
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return False
+        delay = self._cfg(CONF_RAIN_CLEAR_DELAY, DEFAULT_RAIN_CLEAR_DELAY)
+        # unknown/unavailable reads as "not raining" — the control unit is
+        # the real protection, so fail open rather than freezing forever.
+        # The clear delay still rides out an on→unavailable transition.
+        return solar.rain_hold_active(
+            state.state == STATE_ON,
+            (dt_util.utcnow() - state.last_changed).total_seconds(),
+            float(delay),
+        )
+
     # --- Config helpers ---
 
-    @staticmethod
-    def _opt(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-        return entry.options.get(key, entry.data.get(key, default))
+    _opt = staticmethod(entry_value)
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         return self._opt(self.config_entry, key, default)
@@ -248,6 +281,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._unsub_listeners.append(
                 async_track_state_change_event(
                     self.hass, lock_entity, self._on_lock_change
+                )
+            )
+
+        # Rain hold: react immediately instead of waiting for the next tick
+        rain_entity = self._entity(CONF_RAIN_ENTITY)
+        if rain_entity:
+            self._unsub_listeners.append(
+                async_track_state_change_event(
+                    self.hass, rain_entity, self._on_rain_change
                 )
             )
 
@@ -472,6 +514,12 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
                 return self._build_data()
 
+        # Rain hold — issue nothing at all. The control unit already closed
+        # the pergola on its own rain signal and would refuse our commands.
+        if self.rain_hold:
+            _LOGGER.debug("Skip: rain hold active")
+            return self._build_data()
+
         # Check safety lock
         lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
         if lock_entity:
@@ -479,6 +527,20 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if lock_origin in LOCK_ORIGINS:
                 _LOGGER.debug("Skip: safety lock active (%s)", lock_origin)
                 return self._build_data()
+
+        # Nothing blocks us any more — pick up a calibration that rain or a
+        # safety lock deferred this morning. Without this the elevation
+        # listener would never fire again today and the pergola would stay
+        # not-ready until tomorrow.
+        if (
+            self._calibration_deferred
+            and not self._pergola_ready
+            and not self._calibrating
+        ):
+            self._calibration_deferred = False
+            _LOGGER.info("Pergola: retrying deferred morning calibration")
+            self.hass.async_create_task(self._async_calibrate())
+            return self._build_data()
 
         # Solar geometry
         face_azimuth = self._cfg(CONF_FACE_AZIMUTH, DEFAULT_FACE_AZIMUTH)
@@ -787,6 +849,24 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if elev > threshold and not self._pergola_ready and not self._calibrating:
             self.hass.async_create_task(self._async_calibrate())
 
+    @callback
+    def _on_rain_change(self, event: Event) -> None:
+        """Push the rain_hold sensor and resume promptly once it's dry.
+
+        The hold itself can also expire on a timer (``rain_clear_delay``
+        minutes after the sensor goes off) with no state change to observe
+        — the regular tick picks that up.
+        """
+        if event.data.get("new_state") is None:
+            return
+        # async_update_listeners, not async_set_updated_data: the latter
+        # reschedules the periodic refresh, so a flickering rain contact
+        # would keep pushing the control tick further out. The rain_hold
+        # sensor reads the property directly and only needs a state write.
+        self.async_update_listeners()
+        if not self.rain_hold:
+            self.hass.async_create_task(self.async_request_refresh())
+
     async def _async_calibrate(self) -> None:
         """Morning calibration: close fully, verify, unlock.
 
@@ -797,10 +877,20 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         moving — avoids the useless full-close cycle when the evening
         target equals the morning target.
         """
+        if self.rain_hold:
+            _LOGGER.info("Pergola: calibration deferred — rain hold active")
+            self._calibration_deferred = True
+            return
+
         lock_entity = self._entity(CONF_PRIORITY_LOCK_ENTITY)
         if lock_entity:
             lock_origin = self._get_state(lock_entity)
             if lock_origin in LOCK_ORIGINS:
+                _LOGGER.info(
+                    "Pergola: calibration deferred — safety lock (%s)",
+                    lock_origin,
+                )
+                self._calibration_deferred = True
                 return
 
         cover_id = self._entity(CONF_COVER_ENTITY)
@@ -856,6 +946,7 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Reset locks at midnight for next morning calibration."""
         self._pergola_ready = False
         self._descent_calibrated = False
+        self._calibration_deferred = False
         _LOGGER.info("Pergola: midnight reset — locked until morning calibration")
         self.hass.async_create_task(self._save_state())
 
@@ -891,14 +982,16 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not cover_id:
                     continue
 
-                if origin in ("temperature", "security"):
+                if origin in (LOCK_TEMPERATURE, LOCK_SECURITY):
                     await self._async_close_and_verify(cover_id)
                     await asyncio.sleep(75)  # extra wait for safety
                 elif origin == LOCK_RAIN:
-                    current = self._get_cover_tilt()
-                    await self._async_move_and_verify(
-                        cover_id, int(current)
-                    )
+                    # A rain lock is a hold, not a movement: the control
+                    # unit has already closed the pergola and refuses
+                    # commands. Re-asserting the current tilt here only
+                    # fed _consecutive_failures and falsely lit the
+                    # movement_problem sensor.
+                    _LOGGER.debug("Rain lock: holding, no command issued")
 
                 await asyncio.sleep(5)
 
@@ -920,4 +1013,5 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "calibrated_today": self.calibrated_today,
             "mode": self._mode,
             "movement_ok": self.movement_ok,
+            "rain_hold": self.rain_hold,
         }

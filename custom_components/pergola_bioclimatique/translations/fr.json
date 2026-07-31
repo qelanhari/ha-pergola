@@ -15,6 +15,7 @@
           "pv_power_entity": "Capteur de puissance solaire (PV)",
           "light_sensor_entity": "Capteur de luminosité extérieure",
           "humidity_entity": "Capteur d'humidité",
+          "rain_entity": "Capteur de pluie",
           "priority_lock_entity": "Capteur de verrouillage sécurité",
           "priority_lock_timer_entity": "Capteur timer de verrouillage"
         },
@@ -23,8 +24,9 @@
           "pv_power_entity": "Optionnel. Permet à la pergola de détecter les passages nuageux et d'arrêter de suivre le soleil. PV ou capteur de luminosité, les deux fonctionnent.",
           "light_sensor_entity": "Optionnel. Alternative au capteur PV pour la détection ensoleillé/nuageux.",
           "humidity_entity": "Optionnel. Met l'automatisation en pause quand l'humidité est trop élevée (orage, pluie).",
-          "priority_lock_entity": "Optionnel. Si vous avez déjà des automatisations de sécurité (pluie/vent/température), pointez vers le capteur qui indique quel verrou est actif.",
-          "priority_lock_timer_entity": "Optionnel. Va avec le verrou de sécurité — durée du verrou actif."
+          "rain_entity": "Optionnel. N'importe quelle entité on/off qui signale la pluie — un contact de pluie sur une entrée connectée, un capteur météo binaire, ou un assistant que vous temporisez vous-même. Tant qu'elle est à « on », l'intégration n'envoie plus aucune commande de mouvement : le boîtier de votre pergola a déjà fermé les lames sur son propre signal de pluie et les refuserait de toute façon.",
+          "priority_lock_entity": "Optionnel. Pour les boîtiers de pergola (Somfy io par exemple) qui exposent un verrou prioritaire. Le capteur doit renvoyer exactement `rain`, `temperature` ou `security` — tout autre état est ignoré. `rain` maintient la position ; `temperature` et `security` ferment la pergola. Si vous avez simplement un capteur de pluie, utilisez plutôt le champ « Capteur de pluie » ci-dessus.",
+          "priority_lock_timer_entity": "Optionnel. Va avec le verrou de sécurité — durée restante du verrou actif, en secondes. Doit être un nombre simple : une entité `timer` ou une durée `HH:MM:SS` n'est pas interprétée et retombe sur 60 s."
         }
       },
       "geometry": {
@@ -77,7 +79,8 @@
           "cloudy_target": "Position nuageux / standby",
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Humidité maximum",
-          "min_elevation": "Élévation solaire minimum"
+          "min_elevation": "Élévation solaire minimum",
+          "rain_clear_delay": "Délai de fin de pluie"
         },
         "data_description": {
           "update_interval": "À quelle fréquence la boucle de contrôle vérifie le soleil et ajuste la pergola.",
@@ -86,7 +89,8 @@
           "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Défaut 60 % : un bon compromis entre ombre et vue. En été, elle plafonne aussi la cible de suivi du soleil : les lames montent jusqu'à cette position (jamais au-delà de la perpendiculaire) l'après-midi et s'y arrêtent.",
           "min_useful_percent": "En dessous de cette cible, la pergola passe en position nuageux/standby — évite les micro-mouvements au lever du jour.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause (utile quand la pergola mouillée ne doit pas bouger).",
-          "min_elevation": "En dessous de cette élévation solaire (aube/crépuscule), la boucle de contrôle et la calibration matinale restent inactives."
+          "min_elevation": "En dessous de cette élévation solaire (aube/crépuscule), la boucle de contrôle et la calibration matinale restent inactives.",
+          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec — évite qu'une averse interrompue une minute relance le suivi immédiatement. Mettez 0 si votre entité de pluie gère déjà cette temporisation."
         }
       },
       "cloud_detection": {
@@ -133,6 +137,30 @@
   },
   "options": {
     "step": {
+      "entities": {
+        "title": "Pergola et capteurs",
+        "description": "Modifiez l'entité cover ou n'importe lequel des capteurs. Vider un champ optionnel désactive la fonction correspondante.",
+        "data": {
+          "cover_entity": "Entité cover de la pergola",
+          "sun_azimuth_entity": "Capteur d'azimut solaire",
+          "sun_elevation_entity": "Capteur d'élévation solaire",
+          "pv_power_entity": "Capteur de puissance solaire (PV)",
+          "light_sensor_entity": "Capteur de luminosité extérieure",
+          "humidity_entity": "Capteur d'humidité",
+          "rain_entity": "Capteur de pluie",
+          "priority_lock_entity": "Capteur de verrouillage sécurité",
+          "priority_lock_timer_entity": "Capteur timer de verrouillage"
+        },
+        "data_description": {
+          "cover_entity": "L'entité cover Home Assistant qui incline les lames de votre pergola.",
+          "pv_power_entity": "Optionnel. Permet à la pergola de détecter les passages nuageux et d'arrêter de suivre le soleil.",
+          "light_sensor_entity": "Optionnel. Alternative au capteur PV pour la détection ensoleillé/nuageux.",
+          "humidity_entity": "Optionnel. Met l'automatisation en pause quand l'humidité est trop élevée.",
+          "rain_entity": "Optionnel. N'importe quelle entité on/off qui signale la pluie. Tant qu'elle est à « on », l'intégration n'envoie plus aucune commande de mouvement — le boîtier de la pergola ferme les lames lui-même. Réglez la temporisation de sortie avec **Délai de fin de pluie** à l'étape suivante.",
+          "priority_lock_entity": "Optionnel. Pour les boîtiers de pergola (Somfy io par exemple) qui exposent un verrou prioritaire. Doit renvoyer exactement `rain`, `temperature` ou `security`.",
+          "priority_lock_timer_entity": "Optionnel. Durée restante du verrou actif, en secondes (nombre simple)."
+        }
+      },
       "geometry_basic": {
         "title": "Modèle et direction d'orientation de la pergola",
         "description": "Modifiez le modèle ou le cap si besoin, ou cochez **Afficher les paramètres avancés** pour exposer la géométrie des lames et la fenêtre d'exposition solaire.",
@@ -183,7 +211,8 @@
           "cloudy_target": "Position nuageux / standby",
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Humidité maximum",
-          "min_elevation": "Élévation solaire minimum"
+          "min_elevation": "Élévation solaire minimum",
+          "rain_clear_delay": "Délai de fin de pluie"
         },
         "data_description": {
           "update_interval": "À quelle fréquence la boucle de contrôle tourne.",
@@ -192,7 +221,8 @@
           "cloudy_target": "Position utilisée quand il fait nuageux, en standby, ou hors de la fenêtre d'exposition. Plafonne aussi la montée estivale de l'après-midi (jamais au-delà des lames perpendiculaires).",
           "min_useful_percent": "En dessous de cette cible, passe en position standby.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause.",
-          "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives."
+          "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives.",
+          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec. Mettez 0 si votre entité de pluie gère déjà cette temporisation."
         }
       },
       "cloud_detection_basic": {
@@ -246,6 +276,7 @@
     },
     "binary_sensor": {
       "is_sunny": { "name": "Ensoleillé" },
+      "rain_hold": { "name": "Maintien pluie" },
       "ready": { "name": "Prête" },
       "calibrated_today": { "name": "Calibrée aujourd'hui" },
       "movement_problem": { "name": "Problème de mouvement" }

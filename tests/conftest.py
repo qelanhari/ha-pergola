@@ -25,6 +25,7 @@ _DEFAULT_CONFIG: dict = {
     "pv_power_entity": "sensor.pv_power",
     "light_sensor_entity": "sensor.outdoor_lux",
     "humidity_entity": "sensor.humidity",
+    "rain_entity": "binary_sensor.rain",
     "priority_lock_entity": "sensor.lock_originator",
     "priority_lock_timer_entity": "sensor.lock_timer",
     # Step 2 — geometry (face_azimuth=130 drives sun_az_min/max defaults)
@@ -45,6 +46,7 @@ _DEFAULT_CONFIG: dict = {
     "min_useful_percent": 9,
     "humidity_max": 80,
     "min_elevation": 20,
+    "rain_clear_delay": 10,
     # Step 4 — cloud detection (pv_panel_azimuth defaults to face_azimuth)
     "pv_max_watts": 3000,
     "pv_panel_azimuth": 130,
@@ -78,6 +80,7 @@ def minimal_config() -> dict:
         "pv_power_entity",
         "light_sensor_entity",
         "humidity_entity",
+        "rain_entity",
         "priority_lock_entity",
         "priority_lock_timer_entity",
         # Cloud-detection fields aren't stored when no cloud sensor is set

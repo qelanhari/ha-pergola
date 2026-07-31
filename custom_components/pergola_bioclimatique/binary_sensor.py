@@ -12,7 +12,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_LIGHT_SENSOR_ENTITY, CONF_PV_POWER_ENTITY, DOMAIN
+from .const import (
+    CONF_LIGHT_SENSOR_ENTITY,
+    CONF_PV_POWER_ENTITY,
+    CONF_RAIN_ENTITY,
+    DOMAIN,
+    entry_value,
+)
 from .coordinator import PergolaCoordinator
 
 
@@ -29,11 +35,14 @@ async def async_setup_entry(
         PergolaMovementProblemSensor(coordinator, entry),
     ]
 
-    has_cloud_sensor = entry.data.get(CONF_PV_POWER_ENTITY) or entry.data.get(
-        CONF_LIGHT_SENSOR_ENTITY
+    has_cloud_sensor = entry_value(entry, CONF_PV_POWER_ENTITY) or entry_value(
+        entry, CONF_LIGHT_SENSOR_ENTITY
     )
     if has_cloud_sensor:
         entities.append(PergolaSunnySensor(coordinator, entry))
+
+    if entry_value(entry, CONF_RAIN_ENTITY):
+        entities.append(PergolaRainHoldSensor(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -92,6 +101,24 @@ class PergolaCalibratedTodaySensor(PergolaBaseBinarySensor):
     @property
     def is_on(self) -> bool:
         return self.coordinator.calibrated_today
+
+
+class PergolaRainHoldSensor(PergolaBaseBinarySensor):
+    """On while rain is suppressing all movement.
+
+    The one place a user can see *why* the pergola stopped tracking —
+    previously an active hold was only visible in the debug log.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    _attr_icon = "mdi:weather-pouring"
+
+    def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "rain_hold")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.rain_hold
 
 
 class PergolaMovementProblemSensor(PergolaBaseBinarySensor):

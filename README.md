@@ -62,7 +62,8 @@ You can configure the integration with just the cover and sun sensors. Adding th
 - **PV power sensor** — Detects when it's cloudy. When the sky goes overcast, the pergola moves to its standby position instead of chasing a sun that isn't there. Removes pointless movements on bad-weather days.
 - **Outdoor light sensor (lux)** — Same purpose as PV power, but using a luminosity reading. Use whichever you have; both work together if you have both.
 - **Humidity sensor** — Pauses the automation when humidity is too high. Useful for protecting motors during storms or heavy condensation.
-- **Safety lock sensor** — If you already have safety automations (rain/wind/temperature locks), the integration will defer to them: close on hot/security alarms, hold position on rain.
+- **Rain sensor** — Any on/off entity that reports rain: a rain contact wired to a smart input, a weather binary sensor, or a helper you debounce yourself. While it's on the integration issues **no movement commands at all** — your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway. Release is delayed by `rain_clear_delay` (default 10 min) so a shower that flickers dry for a minute doesn't resume tracking immediately; set it to `0` if your entity already debounces itself.
+- **Safety lock sensor** — For controllers (e.g. Somfy io) that expose a *priority lock* originator. The sensor must report exactly `rain`, `temperature` or `security`. Temperature and security close the pergola; rain holds. If all you have is a plain rain sensor, use the **Rain sensor** field above instead — it's simpler and doesn't need magic state strings.
 
 ### Daily use
 
@@ -76,6 +77,7 @@ After install, the integration exposes one **device** with several entities:
 | `binary_sensor.pergola_ready` | Lit once the morning calibration has run. The pergola won't move until this is on. |
 | `binary_sensor.pergola_calibrated_today` | Whether today's calibration has already happened. |
 | `binary_sensor.pergola_sunny` | Live sunny/cloudy state (only if PV/light sensor configured). |
+| `binary_sensor.pergola_rain_hold` | Lit while rain is suppressing all movement (only if a rain sensor is configured). |
 | `binary_sensor.pergola_movement_problem` | Lit when a recent movement failed to reach its target — check for mechanical blockage. |
 | `sensor.pergola_profile_angle` | The current sun profile angle relative to the pergola face (degrees). Useful for calibration. |
 | `sensor.pergola_solar_target` | The position the geometry says is optimal (%). |
@@ -93,7 +95,9 @@ Switch modes at any time via the **Mode** select. Switching to **Manuel** stops 
 
 **The "Ready" sensor never turns on.** The morning calibration only runs once the sun rises above the configured minimum elevation (default 20°). Check that your sun elevation sensor is reporting a value and that the sun is actually that high — at higher latitudes in winter, it may not be. You can also press **Recalibrate** to force it.
 
-**The pergola doesn't move at all.** Check that **Ready** is on, **Mode** isn't set to Manuel, and humidity isn't over the threshold (default 80%). If a safety lock is active, that takes priority — look at the lock entity's state.
+**The pergola doesn't move at all.** Check that **Ready** is on, **Mode** isn't set to Manuel, `binary_sensor.pergola_rain_hold` is off, and humidity isn't over the threshold (default 80%). If a safety lock is active, that takes priority — look at the lock entity's state.
+
+**It stays held long after the rain stopped.** That's `rain_clear_delay` (default 10 min, counted from the rain sensor's last state change). Lower it, or set it to `0` if your rain entity already applies its own delay. Note that an HA restart resets the entity's `last_changed`, so a restart during the window can extend it by up to one full delay — harmless, but it explains an unexpectedly long hold.
 
 **Pergola stays at 60% even though it's clearly sunny.** If you have a PV power sensor configured, the integration is in "cloudy" mode — your smoothed PV reading is below the sunny threshold. Check `sensor.pergola_pv_smooth` against the inverter's actual reading. You may need to adjust the peak PV power in Options if your inverter is much smaller than 3000 W default.
 
@@ -159,9 +163,10 @@ See [CLAUDE.md](CLAUDE.md) for full architecture and control-loop details.
 
 Each tick (`update_interval`, default 5 min) the coordinator:
 
-1. Reads sun azimuth/elevation, optional PV/light/humidity, safety-lock states.
+1. Reads sun azimuth/elevation, optional PV/light/humidity/rain, safety-lock states.
 2. Computes a **profile angle** (sun's angle relative to the pergola face) and a **solar target** in % via `solar.py`.
 3. Applies overrides in priority order:
+   - **Rain hold** active → issue nothing at all (the pergola's own controller handles closing).
    - **Safety lock** active → close (temperature/security) or hold (rain).
    - **Not-yet-calibrated** → don't move; wait for morning calibration.
    - **Humidity over threshold** → pause.
@@ -224,14 +229,26 @@ When sun elevation crosses `min_elevation` and `ready` is False:
 2. **Drift skip optimization**: if the current cover position is within `deadband` of `last_known_position`, no drift could have happened overnight — mark today as calibrated without moving. Saves wear on days the position would have been identical anyway.
 3. Otherwise, close fully, wait 45 s, verify position < 5%, mark calibrated.
 
-### Safety lock watchdog
+### Rain handling
 
-Subscribes to state changes on `priority_lock_entity`. When a lock origin appears:
+Two independent paths, either or both:
+
+**`rain_entity`** (recommended) — any on/off entity. While it reads `on`, and for
+`rain_clear_delay` minutes after it goes `off`, the control loop returns before
+issuing any command and morning calibration is deferred. The release timer is
+derived from the entity's `last_changed`, so nothing extra is persisted and it
+self-heals across restarts. `binary_sensor.pergola_rain_hold` shows the live
+state. When the hold clears, the next cycle simply drives to the current solar
+target from wherever the controller left the blades.
+
+**`priority_lock_entity`** — a watchdog subscribed to the controller's own
+priority-lock originator sensor:
 
 - **Temperature** / **security** → close immediately and wait 75 s before resuming.
-- **Rain** → hold current position (don't drift when wet).
+- **Rain** → hold; no command is issued (re-asserting the tilt against a locked
+  controller only produced spurious `movement_problem` alerts).
 
-Resumes normal operation when the lock clears.
+Both resume normal operation once clear.
 
 ### Parameter reference
 
@@ -260,6 +277,7 @@ Resumes normal operation when the lock clears.
 | `min_useful_percent` | 9% | 0–30 | Below this solar target, switch to cloudy_target (twilight guard). |
 | `humidity_max` | 80% | 50–100 | Above this humidity, automation is paused. |
 | `min_elevation` | 20° | 5–40 | Below this sun elevation, control loop and morning calibration stay idle. |
+| `rain_clear_delay` | 10 min | 0–60 | How long the rain hold stays on after `rain_entity` goes dry. `0` = trust the entity as-is. |
 
 #### Cloud detection (Step 4 → advanced; only if PV or light sensor configured)
 

@@ -138,6 +138,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # elevation listener anyway.
         self._calibration_deferred: bool = False
         self._watchdog_running: bool = False
+        # Last moment the rain sensor was observed on (UTC). Persisted, so a
+        # restart mid-shower resumes the remaining clear delay instead of
+        # holding for a fresh full window. None = rain never seen.
+        self._rain_last_on: datetime | None = None
         self._consecutive_failures: int = 0
         self._first_run: bool = True
         self._mode_just_changed: bool = False
@@ -197,6 +201,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         The pergola control unit gets the rain signal directly and closes
         itself, so the integration's only job is to stop issuing commands
         (which the unit would refuse anyway) until it's dry again.
+
+        Pure read — the ``_rain_last_on`` timestamp it consumes is stamped
+        by ``_note_rain_state`` and ``_on_rain_change``.
         """
         entity_id = self._entity(CONF_RAIN_ENTITY)
         if not entity_id:
@@ -205,14 +212,28 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if state is None:
             return False
         delay = self._cfg(CONF_RAIN_CLEAR_DELAY, DEFAULT_RAIN_CLEAR_DELAY)
+        age: float | None = None
+        if self._rain_last_on is not None:
+            age = (dt_util.utcnow() - self._rain_last_on).total_seconds()
         # unknown/unavailable reads as "not raining" — the control unit is
         # the real protection, so fail open rather than freezing forever.
-        # The clear delay still rides out an on→unavailable transition.
         return solar.rain_hold_active(
-            state.state == STATE_ON,
-            (dt_util.utcnow() - state.last_changed).total_seconds(),
-            float(delay),
+            state.state == STATE_ON, age, float(delay)
         )
+
+    def _note_rain_state(self) -> bool:
+        """Stamp ``_rain_last_on`` while the sensor reads on, return the hold.
+
+        Called from the control loop so a continuously-wet sensor keeps the
+        timestamp current; without this the delay would be measured from
+        the *start* of a long shower and release the moment it ended.
+        """
+        entity_id = self._entity(CONF_RAIN_ENTITY)
+        if entity_id:
+            state = self.hass.states.get(entity_id)
+            if state is not None and state.state == STATE_ON:
+                self._rain_last_on = dt_util.utcnow()
+        return self.rain_hold
 
     # --- Config helpers ---
 
@@ -340,6 +361,17 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._descent_calibrated = data.get("descent_calibrated", False)
             self._consecutive_failures = data.get("consecutive_failures", 0)
             self._last_known_position = data.get("last_known_position")
+            rain_last_on = data.get("rain_last_on")
+            if rain_last_on:
+                try:
+                    parsed = datetime.fromisoformat(rain_last_on)
+                except (ValueError, TypeError):
+                    parsed = None
+                # Must be tz-aware to subtract from dt_util.utcnow(); drop a
+                # naive value rather than raising on every rain_hold read.
+                if parsed is not None and parsed.tzinfo is None:
+                    parsed = None
+                self._rain_last_on = parsed
             # Do NOT restore sunny_changed_at — after restart, the first
             # cloud detection reading should decide immediately without
             # waiting for the hysteresis timer to expire.
@@ -358,6 +390,9 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "descent_calibrated": self._descent_calibrated,
             "consecutive_failures": self._consecutive_failures,
             "last_known_position": self._last_known_position,
+            "rain_last_on": (
+                self._rain_last_on.isoformat() if self._rain_last_on else None
+            ),
         })
 
     # --- Mode control (called from SelectEntity) ---
@@ -516,8 +551,12 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Rain hold — issue nothing at all. The control unit already closed
         # the pergola on its own rain signal and would refuse our commands.
-        if self.rain_hold:
+        if self._note_rain_state():
             _LOGGER.debug("Skip: rain hold active")
+            # Persist the refreshed timestamp: this path returns before the
+            # cycle's normal save, so a long shower would otherwise leave
+            # `rain_last_on` stuck at the moment it started raining.
+            await self._save_state()
             return self._build_data()
 
         # Check safety lock
@@ -857,8 +896,18 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         minutes after the sensor goes off) with no state change to observe
         — the regular tick picks that up.
         """
-        if event.data.get("new_state") is None:
+        new_state = event.data.get("new_state")
+        if new_state is None:
             return
+        old_state = event.data.get("old_state")
+        # Stamp on the way in AND on the way out: the moment it goes off,
+        # "now" is the last instant it was wet, so the clear delay must run
+        # from here — not from whenever the shower started.
+        if new_state.state == STATE_ON or (
+            old_state is not None and old_state.state == STATE_ON
+        ):
+            self._rain_last_on = dt_util.utcnow()
+            self.hass.async_create_task(self._save_state())
         # async_update_listeners, not async_set_updated_data: the latter
         # reschedules the periodic refresh, so a flickering rain contact
         # would keep pushing the control tick further out. The rain_hold

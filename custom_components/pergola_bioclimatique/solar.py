@@ -228,28 +228,34 @@ def is_recent_save(
 
 
 def rain_hold_active(
-    is_on: bool, seconds_since_change: float, clear_delay_minutes: float,
+    is_on: bool,
+    seconds_since_last_on: float | None,
+    clear_delay_minutes: float,
 ) -> bool:
     """True while rain should hold all movement.
 
     Rain is "active" when the sensor reads on, and stays active for
-    ``clear_delay_minutes`` after it goes off — so a shower that flickers
-    dry for a minute doesn't immediately resume tracking. A delay of 0
-    makes this a pass-through of ``is_on`` (for a source that already
+    ``clear_delay_minutes`` after it was last seen on — so a shower that
+    flickers dry for a minute doesn't immediately resume tracking. A delay
+    of 0 makes this a pass-through of ``is_on`` (for a source that already
     debounces itself, e.g. a template/input_boolean helper).
 
-    ``seconds_since_change`` comes from the entity's ``last_changed``
-    rather than a timestamp we track ourselves: nothing to persist, and
-    it self-heals across restarts. Two fail-safe consequences: a restart
-    resets ``last_changed`` so a dry sensor can hold for one extra delay
-    window, and an on→unavailable transition also rides out the delay
-    before releasing.
+    ``seconds_since_last_on`` is measured from when the caller last
+    *observed the sensor on*, and is ``None`` when rain has never been
+    seen. It is deliberately NOT the entity's ``last_changed``: a Home
+    Assistant restart resets that, which held the pergola for a full
+    delay window after every restart even in clear weather (v1.20.0).
+    Tracking the last-on moment instead means a dry sensor with no recent
+    rain never holds, while a restart *during* rain still rides out the
+    remaining delay from the persisted timestamp.
     """
     if is_on:
         return True
+    if seconds_since_last_on is None:
+        return False
     if clear_delay_minutes <= 0:
         return False
-    return seconds_since_change < clear_delay_minutes * 60
+    return seconds_since_last_on < clear_delay_minutes * 60
 
 
 def smooth_pv(raw: float, previous: float, alpha: float) -> float:

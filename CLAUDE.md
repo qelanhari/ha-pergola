@@ -56,7 +56,7 @@ Each tick (`CONF_UPDATE_INTERVAL`, default 5 min) the coordinator:
 1. Reads sun azimuth/elevation, PV/light, humidity, safety-lock states from `hass.states`.
 2. Computes a `profile_angle` and a `solar_target` percent via `solar.py` (winter or summer mode).
 3. Applies overrides in priority order:
-   - **Rain hold** (`CONF_RAIN_ENTITY` on, or off for less than `CONF_RAIN_CLEAR_DELAY` minutes) — return before any service call. The pergola's own controller receives the rain signal and closes itself, and refuses our commands; the only job here is to stop talking to it. Release is timed off the entity's `last_changed` (`solar.rain_hold_active`), so nothing extra is persisted.
+   - **Rain hold** (`CONF_RAIN_ENTITY` on, or last seen on less than `CONF_RAIN_CLEAR_DELAY` minutes ago) — return before any service call. The pergola's own controller receives the rain signal and closes itself, and refuses our commands; the only job here is to stop talking to it. Release is timed from the persisted `rain_last_on` stamp (`solar.rain_hold_active`), **not** the entity's `last_changed` — v1.20.0 used `last_changed` and consequently held the pergola for a full delay window after every HA restart, in any weather. `_note_rain_state()` refreshes the stamp each tick while wet; `_on_rain_change` also stamps on the on→off edge, so the delay runs from when the shower *ended*, not when it began.
    - **Safety lock** active (rain/temperature/security) — rain holds (no command issued), temp/security closes.
    - **Not-yet-calibrated** — skip movement, await morning calibration.
    - **Humidity over threshold** — skip movement.
@@ -100,6 +100,7 @@ Saved every cycle (intentionally, see `c966414`):
 - `descent_calibrated` — flag set after the first descent of the day
 - `consecutive_failures` — failed movement count (drives `binary_sensor.movement_problem`)
 - `last_known_position` — last position the integration successfully commanded (drives the drift-skip optimization above)
+- `rain_last_on` — ISO timestamp (tz-aware UTC) of when the rain sensor was last observed `on`; drives the rain-hold release. `None` when rain has never been seen, which is what makes a restart in clear weather a no-hold.
 
 The cloud hysteresis timer (`sunny_changed_at`) is deliberately **not** persisted (see `212f6dd`) so a restart doesn't lock the integration into "cloudy" for 15 min on a clear morning.
 

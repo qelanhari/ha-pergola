@@ -62,7 +62,7 @@ You can configure the integration with just the cover and sun sensors. Adding th
 - **PV power sensor** — Detects when it's cloudy. When the sky goes overcast, the pergola moves to its standby position instead of chasing a sun that isn't there. Removes pointless movements on bad-weather days.
 - **Outdoor light sensor (lux)** — Same purpose as PV power, but using a luminosity reading. Use whichever you have; both work together if you have both.
 - **Humidity sensor** — Pauses the automation when humidity is too high. Useful for protecting motors during storms or heavy condensation.
-- **Rain sensor** — Any on/off entity that reports rain: a rain contact wired to a smart input, a weather binary sensor, or a helper you debounce yourself. While it's on the integration issues **no movement commands at all** — your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway. Release is delayed by `rain_clear_delay` (default 10 min) so a shower that flickers dry for a minute doesn't resume tracking immediately; set it to `0` if your entity already debounces itself.
+- **Rain sensor** — Any on/off entity that reports rain: a rain contact wired to a smart input, a weather binary sensor, or a helper you debounce yourself. While it's on the integration issues **no movement commands at all** — your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway. Release is delayed by `rain_clear_delay` (default 10 min, measured from the last moment rain was seen) so a shower that flickers dry for a minute doesn't resume tracking immediately; set it to `0` if your entity already debounces itself.
 - **Safety lock sensor** — For controllers (e.g. Somfy io) that expose a *priority lock* originator. The sensor must report exactly `rain`, `temperature` or `security`. Temperature and security close the pergola; rain holds. If all you have is a plain rain sensor, use the **Rain sensor** field above instead — it's simpler and doesn't need magic state strings.
 
 ### Daily use
@@ -97,7 +97,7 @@ Switch modes at any time via the **Mode** select. Switching to **Manuel** stops 
 
 **The pergola doesn't move at all.** Check that **Ready** is on, **Mode** isn't set to Manuel, `binary_sensor.pergola_rain_hold` is off, and humidity isn't over the threshold (default 80%). If a safety lock is active, that takes priority — look at the lock entity's state.
 
-**It stays held long after the rain stopped.** That's `rain_clear_delay` (default 10 min, counted from the rain sensor's last state change). Lower it, or set it to `0` if your rain entity already applies its own delay. Note that an HA restart resets the entity's `last_changed`, so a restart during the window can extend it by up to one full delay — harmless, but it explains an unexpectedly long hold.
+**It stays held long after the rain stopped.** That's `rain_clear_delay` (default 10 min, counted from the last moment the sensor read `on`), plus up to one `update_interval` before the release is picked up. Lower it, or set it to `0` if your rain entity already applies its own delay.
 
 **Pergola stays at 60% even though it's clearly sunny.** If you have a PV power sensor configured, the integration is in "cloudy" mode — your smoothed PV reading is below the sunny threshold. Check `sensor.pergola_pv_smooth` against the inverter's actual reading. You may need to adjust the peak PV power in Options if your inverter is much smaller than 3000 W default.
 
@@ -234,12 +234,17 @@ When sun elevation crosses `min_elevation` and `ready` is False:
 Two independent paths, either or both:
 
 **`rain_entity`** (recommended) — any on/off entity. While it reads `on`, and for
-`rain_clear_delay` minutes after it goes `off`, the control loop returns before
-issuing any command and morning calibration is deferred. The release timer is
-derived from the entity's `last_changed`, so nothing extra is persisted and it
-self-heals across restarts. `binary_sensor.pergola_rain_hold` shows the live
-state. When the hold clears, the next cycle simply drives to the current solar
-target from wherever the controller left the blades.
+`rain_clear_delay` minutes after rain was last seen, the control loop returns
+before issuing any command and morning calibration is deferred. The release is
+timed from the last moment the sensor was observed `on`, persisted as
+`rain_last_on` in the `Store` — so a restart in clear weather never holds, while
+a restart mid-shower resumes the remaining delay. `binary_sensor.pergola_rain_hold`
+shows the live state. When the hold clears, the next cycle simply drives to the
+current solar target from wherever the controller left the blades.
+
+Because nothing fires when the delay merely *expires*, release takes effect on the
+next control tick — so the effective hold is `rain_clear_delay` plus up to one
+`update_interval`. Erring long is the safe direction here.
 
 **`priority_lock_entity`** — a watchdog subscribed to the controller's own
 priority-lock originator sensor:

@@ -431,7 +431,9 @@ class TestRainHoldActive:
     """The hold that stops the integration commanding a pergola in the rain.
 
     The control unit closes the blades on its own rain signal and refuses
-    ours, so the only job here is deciding *how long* to stay quiet.
+    ours, so the only job here is deciding *how long* to stay quiet. The
+    delay is measured from when rain was last *seen*, not from the entity's
+    last_changed — see test_never_rained_never_holds for why.
     """
 
     @pytest.mark.parametrize("seconds", [0, 60, 600, 86400])
@@ -439,22 +441,36 @@ class TestRainHoldActive:
         """A wet sensor holds regardless of how long it's been wet."""
         assert rain_hold_active(True, seconds, 10) is True
 
+    def test_on_holds_even_with_no_timestamp(self) -> None:
+        """First-ever rain: no last-on stamp yet, but it's raining now."""
+        assert rain_hold_active(True, None, 10) is True
+
+    def test_never_rained_never_holds(self) -> None:
+        """The v1.20.0 regression this replaced.
+
+        A dry sensor with no recorded rain must not hold. Previously the
+        delay ran off the entity's last_changed, which an HA restart
+        resets — so every restart held the pergola for a full window in
+        clear weather.
+        """
+        assert rain_hold_active(False, None, 10) is False
+
     @pytest.mark.parametrize(
-        ("seconds_since_change", "expected"),
+        ("seconds_since_last_on", "expected"),
         [
             (0, True),      # just went dry
             (300, True),    # 5 min into a 10 min delay
             (599, True),    # one second short of release
             (600, False),   # exactly the delay — released
             (601, False),   # past the delay
-            (86400, False),  # dry since yesterday
+            (86400, False),  # last rained yesterday
         ],
     )
     def test_clear_delay_window(
-        self, seconds_since_change: float, expected: bool
+        self, seconds_since_last_on: float, expected: bool
     ) -> None:
         assert rain_hold_active(
-            False, seconds_since_change, 10
+            False, seconds_since_last_on, 10
         ) is expected
 
     @pytest.mark.parametrize("seconds", [0, 1, 600, 86400])

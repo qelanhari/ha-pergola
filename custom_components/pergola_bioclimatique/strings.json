@@ -16,6 +16,7 @@
           "light_sensor_entity": "Outdoor light sensor",
           "humidity_entity": "Humidity sensor",
           "rain_entity": "Rain sensor",
+          "presence_entity": "Presence sensor",
           "priority_lock_entity": "Safety lock originator sensor"
         },
         "data_description": {
@@ -24,6 +25,7 @@
           "light_sensor_entity": "Optional. Alternative to PV power for sunny/cloudy detection.",
           "humidity_entity": "Optional. Pauses the automation when humidity is too high (e.g. during a storm).",
           "rain_entity": "Optional. Any on/off entity that reports rain — a rain contact on a smart input, a weather binary sensor, or a helper you debounce yourself. While it reads on, the integration issues no movement commands at all: your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway.",
+          "presence_entity": "Optional, summer mode only. Any entity reporting `home`/`not_home` or `on`/`off` — a person, device_tracker, presence helper or group. When nobody is home the pergola keeps tracking until the algorithm's next natural close through 0%, parks there, and stays shut across days. Tracking resumes once presence has been back for the resume delay. An unknown or unavailable source counts as present, so a broken tracker never parks the pergola.",
           "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. The sensor must report exactly `rain`, `temperature` or `security`. **`temperature` and `security` close the pergola** — those are hardware-protection alarms. A `rain` origin is deliberately ignored: the Rain sensor above is the authority on rain, and this value typically lags it by many minutes, so trusting it could keep the pergola frozen. A reported lock is also used to recognise a command the controller refused, so that isn't mistaken for a mechanical fault."
         }
       },
@@ -78,7 +80,8 @@
           "min_useful_percent": "Minimum useful position",
           "humidity_max": "Maximum humidity",
           "min_elevation": "Minimum sun elevation",
-          "rain_clear_delay": "Rain clear delay"
+          "rain_clear_delay": "Rain clear delay",
+          "presence_resume_delay": "Presence resume delay"
         },
         "data_description": {
           "update_interval": "How often the control loop checks the sun and adjusts the pergola.",
@@ -88,7 +91,8 @@
           "min_useful_percent": "Below this target, the pergola switches to the cloudy/standby position instead — avoids tiny early-morning movements.",
           "humidity_max": "Above this humidity, the automation is paused (useful when a wet pergola shouldn't move).",
           "min_elevation": "Below this sun elevation (e.g. dawn/dusk), the control loop and morning calibration stay idle.",
-          "rain_clear_delay": "How long the rain hold stays on after the rain sensor goes dry — stops a shower that flickers dry for a minute from resuming tracking immediately. Set to 0 if your rain entity already debounces itself."
+          "rain_clear_delay": "How long the rain hold stays on after the rain sensor goes dry — stops a shower that flickers dry for a minute from resuming tracking immediately. Set to 0 if your rain entity already debounces itself.",
+          "presence_resume_delay": "How long presence must be continuously back before summer tracking resumes. Stops a brief return — or a geofence flap — from re-opening a pergola that has parked closed. Set to 0 to resume on the first present reading."
         }
       },
       "cloud_detection": {
@@ -146,6 +150,7 @@
           "light_sensor_entity": "Outdoor light sensor",
           "humidity_entity": "Humidity sensor",
           "rain_entity": "Rain sensor",
+          "presence_entity": "Presence sensor",
           "priority_lock_entity": "Safety lock originator sensor"
         },
         "data_description": {
@@ -154,6 +159,7 @@
           "light_sensor_entity": "Optional. Alternative to PV power for sunny/cloudy detection.",
           "humidity_entity": "Optional. Pauses the automation when humidity is too high.",
           "rain_entity": "Optional. Any on/off entity that reports rain. While it reads on, the integration issues no movement commands at all — your pergola's controller closes the blades itself. Tune the release delay with **Rain clear delay** in the next step.",
+          "presence_entity": "Optional, summer mode only. When nobody is home the pergola parks closed at the next close through 0% and stays shut until presence returns for the resume delay. Winter mode is unaffected.",
           "priority_lock_entity": "Optional. For pergola controllers (e.g. Somfy io) that expose a priority lock. `temperature` and `security` close the pergola; a `rain` origin is ignored in favour of the Rain sensor, which reacts far sooner."
         }
       },
@@ -208,7 +214,8 @@
           "min_useful_percent": "Minimum useful position",
           "humidity_max": "Maximum humidity",
           "min_elevation": "Minimum sun elevation",
-          "rain_clear_delay": "Rain clear delay"
+          "rain_clear_delay": "Rain clear delay",
+          "presence_resume_delay": "Presence resume delay"
         },
         "data_description": {
           "update_interval": "How often the control loop runs.",
@@ -218,7 +225,8 @@
           "min_useful_percent": "Below this target, switch to the standby position instead.",
           "humidity_max": "Above this humidity, the automation is paused.",
           "min_elevation": "Below this sun elevation, the control loop and morning calibration are inactive.",
-          "rain_clear_delay": "How long the rain hold stays on after the rain sensor goes dry. Set to 0 if your rain entity already debounces itself."
+          "rain_clear_delay": "How long the rain hold stays on after the rain sensor goes dry. Set to 0 if your rain entity already debounces itself.",
+          "presence_resume_delay": "How long presence must be continuously back before summer tracking resumes. Stops a brief return — or a geofence flap — from re-opening a pergola that has parked closed. Set to 0 to resume on the first present reading."
         }
       },
       "cloud_detection_basic": {
@@ -265,24 +273,51 @@
   },
   "entity": {
     "sensor": {
-      "profile_angle": { "name": "Profile Angle" },
-      "solar_target": { "name": "Solar Target" },
-      "final_target": { "name": "Final Target" },
-      "pv_smooth": { "name": "PV Smooth" }
+      "profile_angle": {
+        "name": "Profile Angle"
+      },
+      "solar_target": {
+        "name": "Solar Target"
+      },
+      "final_target": {
+        "name": "Final Target"
+      },
+      "pv_smooth": {
+        "name": "PV Smooth"
+      }
     },
     "binary_sensor": {
-      "is_sunny": { "name": "Sunny" },
-      "rain_hold": { "name": "Rain Hold" },
-      "ready": { "name": "Ready" },
-      "calibrated_today": { "name": "Calibrated Today" },
-      "movement_problem": { "name": "Movement Problem" }
+      "is_sunny": {
+        "name": "Sunny"
+      },
+      "rain_hold": {
+        "name": "Rain Hold"
+      },
+      "presence_parked": {
+        "name": "Closed – Away"
+      },
+      "ready": {
+        "name": "Ready"
+      },
+      "calibrated_today": {
+        "name": "Calibrated Today"
+      },
+      "movement_problem": {
+        "name": "Movement Problem"
+      }
     },
     "select": {
-      "mode": { "name": "Mode" }
+      "mode": {
+        "name": "Mode"
+      }
     },
     "button": {
-      "recalibrate": { "name": "Recalibrate" },
-      "refresh_target": { "name": "Refresh Target" }
+      "recalibrate": {
+        "name": "Recalibrate"
+      },
+      "refresh_target": {
+        "name": "Refresh Target"
+      }
     }
   }
 }

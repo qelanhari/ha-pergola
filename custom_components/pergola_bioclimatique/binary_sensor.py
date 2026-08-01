@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_LIGHT_SENSOR_ENTITY,
+    CONF_PRESENCE_ENTITY,
     CONF_PV_POWER_ENTITY,
     CONF_RAIN_ENTITY,
     DOMAIN,
@@ -45,6 +46,9 @@ async def async_setup_entry(
 
     if entry_value(entry, CONF_RAIN_ENTITY):
         entities.append(PergolaRainHoldSensor(coordinator, entry))
+
+    if entry_value(entry, CONF_PRESENCE_ENTITY):
+        entities.append(PergolaPresenceParkedSensor(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -121,6 +125,28 @@ class PergolaRainHoldSensor(PergolaBaseBinarySensor):
     @property
     def is_on(self) -> bool:
         return self.coordinator.rain_hold
+
+
+class PergolaPresenceParkedSensor(PergolaBaseBinarySensor):
+    """On while an empty house is holding the pergola closed.
+
+    Not the same as "nobody home": it only lights once the pergola has
+    actually parked at 0%, which happens at the next close-through-0% after
+    everyone leaves.
+    """
+
+    _attr_icon = "mdi:home-export-outline"
+
+    def __init__(self, coordinator: PergolaCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "presence_parked")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.presence_parked
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"away": self.coordinator.presence_away}
 
 
 class PergolaMovementProblemSensor(PergolaBaseBinarySensor):

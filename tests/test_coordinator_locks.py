@@ -21,118 +21,11 @@ import pytest
 
 pytest.importorskip("pytest_homeassistant_custom_component")
 
-from homeassistant.core import Event, HomeAssistant, State
+from homeassistant.core import HomeAssistant
 
-from custom_components.pergola_bioclimatique.const import DOMAIN, MODE_SUMMER
-from custom_components.pergola_bioclimatique.coordinator import PergolaCoordinator
+from coordinator_harness import COVER, LOCK, RAIN, state_event
 
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_mock_service,
-)
-
-COVER = "cover.pergola"
-RAIN = "binary_sensor.rain"
-LOCK = "sensor.lock_originator"
-AZIMUTH = "sensor.sun_azimuth"
-ELEVATION = "sensor.sun_elevation"
-
-
-@pytest.fixture(autouse=True)
-def no_sleeping():
-    """Skip the 30 s / 45 s post-command verification waits."""
-    with patch(
-        "custom_components.pergola_bioclimatique.coordinator.asyncio.sleep",
-        new=AsyncMock(),
-    ):
-        yield
-
-
-def _entry_data(**overrides) -> dict:
-    data = {
-        "cover_entity": COVER,
-        "sun_azimuth_entity": AZIMUTH,
-        "sun_elevation_entity": ELEVATION,
-        "rain_entity": RAIN,
-        "priority_lock_entity": LOCK,
-        # Geometry / operation: enough for the loop to produce a real target.
-        "face_azimuth": 180,
-        "max_opening_angle": 135,
-        "calibration_offset": 0,
-        "blade_pitch_ratio": 0.92,
-        "flip_profile_threshold": 84,
-        "summer_blade_offset": 0,
-        "phase_a_intercept": 40,
-        "sun_az_min": 90,
-        "sun_az_max": 270,
-        "update_interval": 5,
-        "step_size": 5,
-        "deadband": 2,
-        "cloudy_target": 60,
-        "min_useful_percent": 9,
-        "humidity_max": 80,
-        "min_elevation": 20,
-        "rain_clear_delay": 10,
-    }
-    data.update(overrides)
-    return data
-
-
-@pytest.fixture
-async def make_coordinator(hass: HomeAssistant):
-    """Factory for a coordinator past first-run and morning calibration.
-
-    Tears every coordinator down afterwards — `async_setup` registers a
-    midnight-reset time listener that otherwise lingers past the test.
-    """
-    created: list[PergolaCoordinator] = []
-
-    async def _factory(
-        *, tilt: int = 20, rain: str = "off", lock: str = "unknown", **config
-    ) -> PergolaCoordinator:
-        hass.states.async_set(COVER, "open", {"current_tilt_position": tilt})
-        hass.states.async_set(AZIMUTH, "180")
-        hass.states.async_set(ELEVATION, "50")
-        hass.states.async_set(RAIN, rain)
-        hass.states.async_set(LOCK, lock)
-        await hass.async_block_till_done()
-
-        entry = MockConfigEntry(
-            domain=DOMAIN, data=_entry_data(**config), options={}, title="Pergola"
-        )
-        entry.add_to_hass(hass)
-        coordinator = PergolaCoordinator(hass, entry)
-        await coordinator.async_setup()
-        created.append(coordinator)
-
-        # Get past the guards that aren't under test here.
-        coordinator._first_run = False
-        coordinator._pergola_ready = True
-        coordinator._descent_calibrated = True
-        coordinator._mode = MODE_SUMMER
-        coordinator._is_sunny = True
-        return coordinator
-
-    yield _factory
-
-    for coordinator in created:
-        await coordinator.async_teardown()
-
-
-def _state_event(entity_id: str, *, old: str | None, new: str | None) -> Event:
-    """Minimal stand-in for a state_changed Event.
-
-    The listeners only read ``data['old_state']`` / ``data['new_state']``, so
-    a shim keeps these tests readable.
-    """
-    return Event(
-        "state_changed",
-        {
-            "entity_id": entity_id,
-            "old_state": State(entity_id, old) if old is not None else None,
-            "new_state": State(entity_id, new) if new is not None else None,
-        },
-    )
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 
 class TestRainHoldGate:
@@ -294,7 +187,7 @@ class TestStartupTransitions:
         ) as refresh:
             # old_state None is the signature of an entity being added.
             getattr(coordinator, listener)(
-                _state_event(entity, old=None, new="off")
+                state_event(entity, old=None, new="off")
             )
             await hass.async_block_till_done()
 
@@ -310,7 +203,7 @@ class TestStartupTransitions:
             coordinator, "async_request_refresh", new=AsyncMock()
         ) as refresh:
             coordinator._on_lock_change(
-                _state_event(LOCK, old="unknown", new="temperature")
+                state_event(LOCK, old="unknown", new="temperature")
             )
             await hass.async_block_till_done()
 
@@ -329,7 +222,7 @@ class TestStartupTransitions:
         with patch.object(
             coordinator, "async_request_refresh", new=AsyncMock()
         ) as refresh:
-            coordinator._on_rain_change(_state_event(RAIN, old="on", new="off"))
+            coordinator._on_rain_change(state_event(RAIN, old="on", new="off"))
             await hass.async_block_till_done()
 
         assert coordinator.rain_hold is True
@@ -344,7 +237,7 @@ class TestStartupTransitions:
         with patch.object(
             coordinator, "async_request_refresh", new=AsyncMock()
         ) as refresh:
-            coordinator._on_rain_change(_state_event(RAIN, old="on", new="off"))
+            coordinator._on_rain_change(state_event(RAIN, old="on", new="off"))
             await hass.async_block_till_done()
 
         assert coordinator.rain_hold is False
@@ -357,7 +250,7 @@ class TestStartupTransitions:
         coordinator = await make_coordinator()
         assert coordinator._rain_last_on is None
 
-        coordinator._on_rain_change(_state_event(RAIN, old="off", new="on"))
+        coordinator._on_rain_change(state_event(RAIN, old="off", new="on"))
         await hass.async_block_till_done()
 
         assert coordinator._rain_last_on is not None

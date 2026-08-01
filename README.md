@@ -63,6 +63,7 @@ You can configure the integration with just the cover and sun sensors. Adding th
 - **Outdoor light sensor (lux)** — Same purpose as PV power, but using a luminosity reading. Use whichever you have; both work together if you have both.
 - **Humidity sensor** — Pauses the automation when humidity is too high. Useful for protecting motors during storms or heavy condensation.
 - **Rain sensor** — Any on/off entity that reports rain: a rain contact wired to a smart input, a weather binary sensor, or a helper you debounce yourself. While it's on the integration issues **no movement commands at all** — your pergola's own controller has already closed the blades on its rain signal and would refuse them anyway. Release is delayed by `rain_clear_delay` (default 10 min, measured from the last moment rain was seen) so a shower that flickers dry for a minute doesn't resume tracking immediately; set it to `0` if your entity already debounces itself.
+- **Presence sensor** — *Summer mode only.* Any entity reporting `home`/`not_home` or `on`/`off`. When nobody's home the pergola doesn't stop dead — that would cost an extra close/open pair every time you step out. It keeps tracking until the algorithm's **next natural close through 0%**, parks there, and stays shut across days. Tracking resumes once presence has been continuously back for `presence_resume_delay`. An unknown or unavailable source counts as present, so a broken tracker never parks the pergola.
 - **Safety lock sensor** — For controllers (e.g. Somfy io) that expose a *priority lock* originator, reporting exactly `rain`, `temperature` or `security`. **`temperature` and `security` close the pergola** — hardware-protection alarms no rain sensor can see. A `rain` origin is **ignored**: the rain sensor above is the authority, and this value typically lags it by many minutes and can stick, so honouring it risks freezing the pergola. Any reported lock is still used to recognise a command the controller refused, so a refusal isn't mistaken for a mechanical fault.
 
 ### Daily use
@@ -78,6 +79,7 @@ After install, the integration exposes one **device** with several entities:
 | `binary_sensor.pergola_calibrated_today` | Whether today's calibration has already happened. |
 | `binary_sensor.pergola_sunny` | Live sunny/cloudy state (only if PV/light sensor configured). |
 | `binary_sensor.pergola_rain_hold` | Lit while rain is suppressing all movement (only if a rain sensor is configured). |
+| `binary_sensor.pergola_presence_parked` | Lit while an empty house is holding the pergola shut (only if a presence sensor is configured). Its `away` attribute shows the live presence reading — the two differ during the resume delay. |
 | `binary_sensor.pergola_movement_problem` | Lit when a recent movement failed to reach its target — check for mechanical blockage. A command the controller *refused* does not light it; its `lock_origin` attribute names any lock currently reported. |
 | `sensor.pergola_profile_angle` | The current sun profile angle relative to the pergola face (degrees). Useful for calibration. |
 | `sensor.pergola_solar_target` | The position the geometry says is optimal (%). |
@@ -171,6 +173,7 @@ Each tick (`update_interval`, default 5 min) the coordinator:
    - **Not-yet-calibrated** → don't move; wait for morning calibration.
    - **Humidity over threshold** → pause.
    - **Outside sun exposure window** (`sun_az_min` / `sun_az_max`) → fall back to `cloudy_target` (building itself shadows the pergola).
+   - **Parked for absence** (summer) → target 0%. Latched at the previous close through 0%, not the moment everyone left.
    - **Cloudy** → fall back to `cloudy_target`; in winter, hold the previously commanded position if higher.
    - **Solar target < min_useful_percent** → fall back to `cloudy_target` (twilight standby guard).
    - Otherwise → use the **solar target**.
@@ -268,6 +271,35 @@ next tick. There is no separate watchdog task (removed in v1.21.0, along with th
 `priority_lock_timer_entity` field it depended on — that sensor proved unreliable
 and nothing reads it now).
 
+### Presence parking (summer)
+
+Configure `presence_entity` and, in summer mode, an empty house eventually holds
+the pergola closed. The sequencing is deliberate — leaving doesn't move anything:
+
+```
+LEAVE 10:00 (summer, tracking)
+  10:00–12:40   keeps tracking normally
+  12:40         the phase A→B flip drops the target from ~100% to ~10%,
+                so the descent recalibration closes through 0%
+                → LATCH: stay at 0% instead of opening back up
+  next days     stays shut; calibration is skipped, so nothing moves
+RETURN          tracking resumes once presence has been back
+                for presence_resume_delay (default 30 min)
+```
+
+Parking happens at the **next close the algorithm was going to perform anyway**
+— either that flip-driven descent or the morning calibration — so it never
+invents a movement. Leaving after the flip means the pergola tracks out the rest
+of the day and parks at the next morning's calibration instead.
+
+Once parked, morning calibration is skipped entirely and `ready` stays off. The
+trade-off: returning mid-day needs a calibration cycle (a real close-and-verify)
+before tracking can resume.
+
+The resume delay is one-directional — only coming back is debounced, since a
+brief return shouldn't re-open a parked pergola. Winter mode ignores presence
+completely.
+
 ### Parameter reference
 
 #### Geometry (Step 2 → advanced)
@@ -296,6 +328,7 @@ and nothing reads it now).
 | `humidity_max` | 80% | 50–100 | Above this humidity, automation is paused. |
 | `min_elevation` | 20° | 5–40 | Below this sun elevation, control loop and morning calibration stay idle. |
 | `rain_clear_delay` | 10 min | 0–60 | How long the rain hold stays on after `rain_entity` goes dry. `0` = trust the entity as-is. |
+| `presence_resume_delay` | 30 min | 0–180 | How long presence must be continuously back before summer tracking resumes. `0` = resume on the first present reading. |
 
 #### Cloud detection (Step 4 → advanced; only if PV or light sensor configured)
 

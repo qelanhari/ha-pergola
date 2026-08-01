@@ -57,6 +57,7 @@ from custom_components.pergola_bioclimatique.const import (
     CONF_PV_POWER_ENTITY,
     CONF_PV_SMOOTH_ALPHA,
     CONF_PV_SUNNY_RATIO,
+    CONF_PRESENCE_RESUME_DELAY,
     CONF_RAIN_CLEAR_DELAY,
     CONF_RAIN_ENTITY,
     CONF_STEP_SIZE,
@@ -87,6 +88,7 @@ from custom_components.pergola_bioclimatique.const import (
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
     DEFAULT_PV_SUNNY_RATIO,
+    DEFAULT_PRESENCE_RESUME_DELAY,
     DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_STEP_SIZE,
     DEFAULT_SUMMER_BLADE_OFFSET,
@@ -190,6 +192,7 @@ def _step3_default_operation() -> dict:
         CONF_HUMIDITY_MAX: DEFAULT_HUMIDITY_MAX,
         CONF_MIN_ELEVATION: DEFAULT_MIN_ELEVATION,
         CONF_RAIN_CLEAR_DELAY: DEFAULT_RAIN_CLEAR_DELAY,
+        CONF_PRESENCE_RESUME_DELAY: DEFAULT_PRESENCE_RESUME_DELAY,
     }
 
 
@@ -219,6 +222,7 @@ def _expected_default_data(face_az: int, *, with_cloud: bool) -> dict:
         CONF_HUMIDITY_MAX: DEFAULT_HUMIDITY_MAX,
         CONF_MIN_ELEVATION: DEFAULT_MIN_ELEVATION,
         CONF_RAIN_CLEAR_DELAY: DEFAULT_RAIN_CLEAR_DELAY,
+        CONF_PRESENCE_RESUME_DELAY: DEFAULT_PRESENCE_RESUME_DELAY,
     }
     if with_cloud:
         data[CONF_PV_POWER_ENTITY] = "sensor.pv_power"

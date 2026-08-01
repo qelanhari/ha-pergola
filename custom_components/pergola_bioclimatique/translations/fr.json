@@ -16,6 +16,7 @@
           "light_sensor_entity": "Capteur de luminosité extérieure",
           "humidity_entity": "Capteur d'humidité",
           "rain_entity": "Capteur de pluie",
+          "presence_entity": "Capteur de présence",
           "priority_lock_entity": "Capteur de verrouillage sécurité"
         },
         "data_description": {
@@ -24,6 +25,7 @@
           "light_sensor_entity": "Optionnel. Alternative au capteur PV pour la détection ensoleillé/nuageux.",
           "humidity_entity": "Optionnel. Met l'automatisation en pause quand l'humidité est trop élevée (orage, pluie).",
           "rain_entity": "Optionnel. N'importe quelle entité on/off qui signale la pluie — un contact de pluie sur une entrée connectée, un capteur météo binaire, ou un assistant que vous temporisez vous-même. Tant qu'elle est à « on », l'intégration n'envoie plus aucune commande de mouvement : le boîtier de votre pergola a déjà fermé les lames sur son propre signal de pluie et les refuserait de toute façon.",
+          "presence_entity": "Optionnel, mode été uniquement. N'importe quelle entité renvoyant `home`/`not_home` ou `on`/`off` — une personne, un device_tracker, un assistant de présence ou un groupe. Quand la maison est vide, la pergola continue de suivre le soleil jusqu'à la prochaine fermeture naturelle par 0 % de l'algorithme, s'y arrête, et reste fermée les jours suivants. Le suivi reprend une fois la présence revenue pendant le délai de reprise. Une source inconnue ou indisponible compte comme présente : un capteur en panne ne ferme donc jamais la pergola.",
           "priority_lock_entity": "Optionnel. Pour les boîtiers de pergola (Somfy io par exemple) qui exposent un verrou prioritaire. Le capteur doit renvoyer exactement `rain`, `temperature` ou `security`. **`temperature` et `security` ferment la pergola** — ce sont des alarmes de protection matérielle. Un verrou `rain` est volontairement ignoré : le « Capteur de pluie » ci-dessus fait autorité sur la pluie, et cette valeur est typiquement en retard de plusieurs minutes ; s'y fier pourrait laisser la pergola figée. Un verrou signalé sert aussi à reconnaître une commande refusée par le boîtier, pour ne pas la confondre avec une panne mécanique."
         }
       },
@@ -78,7 +80,8 @@
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Humidité maximum",
           "min_elevation": "Élévation solaire minimum",
-          "rain_clear_delay": "Délai de fin de pluie"
+          "rain_clear_delay": "Délai de fin de pluie",
+          "presence_resume_delay": "Délai de reprise après retour"
         },
         "data_description": {
           "update_interval": "À quelle fréquence la boucle de contrôle vérifie le soleil et ajuste la pergola.",
@@ -88,7 +91,8 @@
           "min_useful_percent": "En dessous de cette cible, la pergola passe en position nuageux/standby — évite les micro-mouvements au lever du jour.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause (utile quand la pergola mouillée ne doit pas bouger).",
           "min_elevation": "En dessous de cette élévation solaire (aube/crépuscule), la boucle de contrôle et la calibration matinale restent inactives.",
-          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec — évite qu'une averse interrompue une minute relance le suivi immédiatement. Mettez 0 si votre entité de pluie gère déjà cette temporisation."
+          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec — évite qu'une averse interrompue une minute relance le suivi immédiatement. Mettez 0 si votre entité de pluie gère déjà cette temporisation.",
+          "presence_resume_delay": "Durée pendant laquelle la présence doit être revenue en continu avant que le suivi estival reprenne. Évite qu'un passage bref — ou un rebond de géolocalisation — rouvre une pergola garée fermée. Mettez 0 pour reprendre dès la première lecture de présence."
         }
       },
       "cloud_detection": {
@@ -146,6 +150,7 @@
           "light_sensor_entity": "Capteur de luminosité extérieure",
           "humidity_entity": "Capteur d'humidité",
           "rain_entity": "Capteur de pluie",
+          "presence_entity": "Capteur de présence",
           "priority_lock_entity": "Capteur de verrouillage sécurité"
         },
         "data_description": {
@@ -154,6 +159,7 @@
           "light_sensor_entity": "Optionnel. Alternative au capteur PV pour la détection ensoleillé/nuageux.",
           "humidity_entity": "Optionnel. Met l'automatisation en pause quand l'humidité est trop élevée.",
           "rain_entity": "Optionnel. N'importe quelle entité on/off qui signale la pluie. Tant qu'elle est à « on », l'intégration n'envoie plus aucune commande de mouvement — le boîtier de la pergola ferme les lames lui-même. Réglez la temporisation de sortie avec **Délai de fin de pluie** à l'étape suivante.",
+          "presence_entity": "Optionnel, mode été uniquement. Maison vide : la pergola se gare fermée à la prochaine fermeture par 0 % et le reste jusqu'au retour de la présence pendant le délai de reprise. Le mode hiver n'est pas affecté.",
           "priority_lock_entity": "Optionnel. Pour les boîtiers de pergola (Somfy io par exemple) qui exposent un verrou prioritaire. `temperature` et `security` ferment la pergola ; un verrou `rain` est ignoré au profit du « Capteur de pluie », qui réagit bien plus tôt."
         }
       },
@@ -208,7 +214,8 @@
           "min_useful_percent": "Position minimum utile",
           "humidity_max": "Humidité maximum",
           "min_elevation": "Élévation solaire minimum",
-          "rain_clear_delay": "Délai de fin de pluie"
+          "rain_clear_delay": "Délai de fin de pluie",
+          "presence_resume_delay": "Délai de reprise après retour"
         },
         "data_description": {
           "update_interval": "À quelle fréquence la boucle de contrôle tourne.",
@@ -218,7 +225,8 @@
           "min_useful_percent": "En dessous de cette cible, passe en position standby.",
           "humidity_max": "Au-dessus de cette humidité, l'automatisation est en pause.",
           "min_elevation": "En dessous de cette élévation, la boucle de contrôle et la calibration matinale sont inactives.",
-          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec. Mettez 0 si votre entité de pluie gère déjà cette temporisation."
+          "rain_clear_delay": "Durée pendant laquelle le maintien pluie reste actif après que le capteur soit redevenu sec. Mettez 0 si votre entité de pluie gère déjà cette temporisation.",
+          "presence_resume_delay": "Durée pendant laquelle la présence doit être revenue en continu avant que le suivi estival reprenne. Évite qu'un passage bref — ou un rebond de géolocalisation — rouvre une pergola garée fermée. Mettez 0 pour reprendre dès la première lecture de présence."
         }
       },
       "cloud_detection_basic": {
@@ -265,24 +273,51 @@
   },
   "entity": {
     "sensor": {
-      "profile_angle": { "name": "Angle de profil" },
-      "solar_target": { "name": "Cible solaire" },
-      "final_target": { "name": "Cible finale" },
-      "pv_smooth": { "name": "PV lissé" }
+      "profile_angle": {
+        "name": "Angle de profil"
+      },
+      "solar_target": {
+        "name": "Cible solaire"
+      },
+      "final_target": {
+        "name": "Cible finale"
+      },
+      "pv_smooth": {
+        "name": "PV lissé"
+      }
     },
     "binary_sensor": {
-      "is_sunny": { "name": "Ensoleillé" },
-      "rain_hold": { "name": "Maintien pluie" },
-      "ready": { "name": "Prête" },
-      "calibrated_today": { "name": "Calibrée aujourd'hui" },
-      "movement_problem": { "name": "Problème de mouvement" }
+      "is_sunny": {
+        "name": "Ensoleillé"
+      },
+      "rain_hold": {
+        "name": "Maintien pluie"
+      },
+      "presence_parked": {
+        "name": "Fermée – Absence"
+      },
+      "ready": {
+        "name": "Prête"
+      },
+      "calibrated_today": {
+        "name": "Calibrée aujourd'hui"
+      },
+      "movement_problem": {
+        "name": "Problème de mouvement"
+      }
     },
     "select": {
-      "mode": { "name": "Mode" }
+      "mode": {
+        "name": "Mode"
+      }
     },
     "button": {
-      "recalibrate": { "name": "Recalibrer" },
-      "refresh_target": { "name": "Recalculer la cible" }
+      "recalibrate": {
+        "name": "Recalibrer"
+      },
+      "refresh_target": {
+        "name": "Recalculer la cible"
+      }
     }
   }
 }

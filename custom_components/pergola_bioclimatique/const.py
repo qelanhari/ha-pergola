@@ -27,6 +27,7 @@ CONF_PV_POWER_ENTITY = "pv_power_entity"
 CONF_LIGHT_SENSOR_ENTITY = "light_sensor_entity"
 CONF_HUMIDITY_ENTITY = "humidity_entity"
 CONF_RAIN_ENTITY = "rain_entity"
+CONF_PRESENCE_ENTITY = "presence_entity"
 CONF_PRIORITY_LOCK_ENTITY = "priority_lock_entity"
 # Unread since v1.21.0: the controller's lock timer proved unreliable and
 # hard to get updates on, so nothing derives timing from it any more. The
@@ -55,6 +56,7 @@ CONF_MIN_USEFUL_PERCENT = "min_useful_percent"
 CONF_HUMIDITY_MAX = "humidity_max"
 CONF_MIN_ELEVATION = "min_elevation"
 CONF_RAIN_CLEAR_DELAY = "rain_clear_delay"
+CONF_PRESENCE_RESUME_DELAY = "presence_resume_delay"
 
 # Config keys — Step 4: Cloud detection
 CONF_PV_MAX_WATTS = "pv_max_watts"
@@ -121,6 +123,9 @@ DEFAULT_MIN_ELEVATION = 20
 # Minutes the rain hold stays active after the rain sensor goes dry.
 # 0 = trust the entity as-is (for a source that debounces itself).
 DEFAULT_RAIN_CLEAR_DELAY = 10
+# Minutes presence must be continuously back before summer tracking resumes.
+# Guards against geofence flaps re-opening the pergola for a brief visit.
+DEFAULT_PRESENCE_RESUME_DELAY = 30
 
 # Defaults — Cloud detection
 DEFAULT_PV_MAX_WATTS = 3000

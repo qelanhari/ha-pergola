@@ -22,6 +22,8 @@ from solar import (  # noqa: E402
     is_recent_save,
     is_sunny,
     panel_cos_aoi,
+    presence_is_away,
+    presence_resume_ready,
     quantize,
     rain_hold_active,
     smooth_pv,
@@ -487,6 +489,41 @@ class TestRainHoldActive:
         """Delay need not be whole minutes."""
         assert rain_hold_active(False, 20, 0.5) is True
         assert rain_hold_active(False, 40, 0.5) is False
+
+
+class TestPresenceHelpers:
+    @pytest.mark.parametrize("state", ["not_home", "off"])
+    def test_away_vocabularies(self, state: str) -> None:
+        """person/device_tracker say not_home; binary_sensor/helpers say off."""
+        assert presence_is_away(state) is True
+
+    @pytest.mark.parametrize(
+        "state", ["home", "on", "", "unknown", "unavailable", "Home", "OFF"]
+    )
+    def test_everything_else_counts_as_present(self, state: str) -> None:
+        """Fail-safe: only a positive away reading parks the pergola.
+
+        Note the case sensitivity — HA states are lowercase, and treating
+        "OFF" as away would mean guessing at a source we don't understand.
+        """
+        assert presence_is_away(state) is False
+
+    @pytest.mark.parametrize(
+        ("seconds", "expected"),
+        [
+            (None, False),   # currently away — nothing to resume from
+            (0, False),      # just walked in
+            (1799, False),   # one second short of 30 min
+            (1800, True),    # exactly the delay
+            (86400, True),   # home all day
+        ],
+    )
+    def test_resume_delay_window(self, seconds, expected: bool) -> None:
+        assert presence_resume_ready(seconds, 30) is expected
+
+    def test_zero_delay_resumes_on_first_reading(self) -> None:
+        assert presence_resume_ready(0, 0) is True
+        assert presence_resume_ready(None, 0) is False
 
 
 class TestComputePvThreshold:

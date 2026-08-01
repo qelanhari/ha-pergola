@@ -51,6 +51,8 @@ from .const import (
     CONF_MAX_OPENING_ANGLE,
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
+    CONF_PRESENCE_ENTITY,
+    CONF_PRESENCE_RESUME_DELAY,
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PV_MAX_WATTS,
     CONF_PV_OBSERVABLE_COS,
@@ -89,6 +91,7 @@ from .const import (
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
+    DEFAULT_PRESENCE_RESUME_DELAY,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
@@ -203,6 +206,7 @@ ENTITY_KEYS = (
     CONF_LIGHT_SENSOR_ENTITY,
     CONF_HUMIDITY_ENTITY,
     CONF_RAIN_ENTITY,
+    CONF_PRESENCE_ENTITY,
     CONF_PRIORITY_LOCK_ENTITY,
 )
 
@@ -210,6 +214,17 @@ ENTITY_KEYS = (
 # a rain contact wired to a Shelly input reports device_class "power", so
 # filtering on "moisture" would hide the very sensor this is for.
 RAIN_ENTITY_DOMAINS = ["binary_sensor", "input_boolean", "switch"]
+
+# Presence accepts both state vocabularies: home/not_home (person,
+# device_tracker, zone) and on/off (binary_sensor, input_boolean, group).
+PRESENCE_ENTITY_DOMAINS = [
+    "person",
+    "device_tracker",
+    "binary_sensor",
+    "input_boolean",
+    "group",
+    "zone",
+]
 
 
 def _entity_schema(
@@ -264,6 +279,10 @@ def _entity_schema(
     schema[vol.Optional(CONF_RAIN_ENTITY, **_suggest(CONF_RAIN_ENTITY))] = (
         EntitySelector(EntitySelectorConfig(domain=RAIN_ENTITY_DOMAINS))
     )
+
+    schema[
+        vol.Optional(CONF_PRESENCE_ENTITY, **_suggest(CONF_PRESENCE_ENTITY))
+    ] = EntitySelector(EntitySelectorConfig(domain=PRESENCE_ENTITY_DOMAINS))
 
     schema[
         vol.Optional(CONF_PRIORITY_LOCK_ENTITY, **_suggest(CONF_PRIORITY_LOCK_ENTITY))
@@ -478,6 +497,17 @@ def _operation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): NumberSelector(
                 NumberSelectorConfig(
                     min=0, max=60, step=1, mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="min",
+                )
+            ),
+            vol.Required(
+                CONF_PRESENCE_RESUME_DELAY,
+                default=d.get(
+                    CONF_PRESENCE_RESUME_DELAY, DEFAULT_PRESENCE_RESUME_DELAY
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0, max=180, step=5, mode=NumberSelectorMode.BOX,
                     unit_of_measurement="min",
                 )
             ),

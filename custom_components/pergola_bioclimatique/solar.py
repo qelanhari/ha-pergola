@@ -258,6 +258,35 @@ def rain_hold_active(
     return seconds_since_last_on < clear_delay_minutes * 60
 
 
+def presence_is_away(state: str) -> bool:
+    """True only when the entity positively reports nobody home.
+
+    Covers both state vocabularies a presence source can use: ``not_home``
+    (person, device_tracker, zone) and ``off`` (binary_sensor,
+    input_boolean, switch, group). Anything else — including ``home``,
+    ``on``, and the empty string the coordinator returns for
+    unknown/unavailable — counts as present, so a broken or missing
+    tracker leaves normal operation untouched rather than parking the
+    pergola shut.
+    """
+    return state in ("not_home", "off")
+
+
+def presence_resume_ready(
+    seconds_present: float | None, resume_delay_minutes: float
+) -> bool:
+    """True once presence has been continuously back long enough to resume.
+
+    ``seconds_present`` is measured from when the source last became
+    present, or ``None`` when it currently reports away. The delay stops a
+    brief return — or a geofence flap — from re-opening a pergola that has
+    been parked closed. A delay of 0 resumes on the first present reading.
+    """
+    if seconds_present is None:
+        return False
+    return seconds_present >= resume_delay_minutes * 60
+
+
 def smooth_pv(raw: float, previous: float, alpha: float) -> float:
     """Exponential smoothing of PV power reading."""
     return round(alpha * raw + (1 - alpha) * previous, 1)

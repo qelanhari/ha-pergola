@@ -27,7 +27,7 @@ Test layout:
 - `tests/test_solar.py` — pure math (compute_profile_angle, winter/summer targets, cloud detection).
 - `tests/test_config_flow_helpers.py` — helper functions in config_flow.py (`_geometry_defaults`, `_cloud_defaults`, `_geometry_has_non_defaults`, `_cloud_has_non_defaults`); parametrized across cardinal directions. Includes a storage-equivalence proof that the basic flow stores a byte-identical dict to the legacy default install.
 - `tests/test_config_flow.py` — install + Options walkthroughs against a mocked Home Assistant. Skipped automatically (via `pytest.importorskip`) when the plugin isn't installed.
-- `tests/test_coordinator_locks.py` — the rain hold and safety-lock gates against a mocked HA (skipped without the plugin, like `test_config_flow.py`). Uses a `make_coordinator` fixture that tears each coordinator down — `async_setup` registers a midnight-reset time listener that otherwise trips the harness's lingering-timer check. Patches `coordinator.asyncio.sleep` to skip the 30 s/45 s verification waits.
+- `tests/test_coordinator_locks.py`, `tests/test_coordinator_presence.py` — the rain hold, safety-lock gates and summer presence parking against a mocked HA (skipped without the plugin, like `test_config_flow.py`). The `make_coordinator` / `no_sleeping` fixtures live in `tests/conftest.py` behind an HA-availability check; plain helpers (`entry_data`, `state_event`, `mock_working_cover`) live in `tests/coordinator_harness.py`. `make_coordinator` tears each coordinator down via `async_teardown()` **and** `async_shutdown()` — the midnight-reset listener and the refresh debouncer both otherwise trip the harness's lingering-timer check. Use `mock_working_cover` (not `async_mock_service`) when a test needs a close to actually *succeed*.
 - `tests/test_baseline_snapshot.py` — day-in-the-life regression: locks `(profile_angle, winter_target, summer_target)` outputs for a representative summer and winter day. First run bootstraps `tests/snapshots/baseline.json` and skips; rerun validates. `UPDATE_SNAPSHOT=1 pytest …` rewrites the snapshot for intentional algorithm changes.
 - `tests/conftest.py` — `default_config` / `minimal_config` / `customized_config` fixtures mirroring the current schema.
 
@@ -62,6 +62,7 @@ Each tick (`CONF_UPDATE_INTERVAL`, default 5 min) the coordinator:
    - **Not-yet-calibrated** — skip movement, await morning calibration.
    - **Humidity over threshold** — skip movement.
    - **Outside sun exposure window** (`CONF_SUN_AZ_MIN` / `CONF_SUN_AZ_MAX`, defaults `face_azimuth ± 90°`) — building itself shadows the pergola; fall back to `cloudy_target` directly without computing a solar target.
+   - **Presence parking** (`CONF_PRESENCE_ENTITY`, **summer only**) — target 0%. The latch (`_presence_parked`, persisted) is set at the algorithm's next close through 0% while away — the descent recalibration the phase A→B flip forces, or a morning calibration that actually closed (the drift-skip branch must not latch: it never moved). Leaving does *not* itself move anything. Cleared by `_note_presence()` once presence has been continuously back for `CONF_PRESENCE_RESUME_DELAY`. Note `presence_parked` deliberately does **not** also require `presence_away` — the latch has to outlive the arrival or the resume delay would be meaningless.
    - **Cloudy state** — fall back to `cloudy_target`; in winter, hold the previously commanded position if higher.
    - **Solar target below `min_useful_percent`** — twilight guard; fall back to `cloudy_target`.
    - Otherwise → use the solar target.
@@ -102,6 +103,7 @@ Saved every cycle (intentionally, see `c966414`):
 - `consecutive_failures` — failed movement count (drives `binary_sensor.movement_problem`)
 - `last_known_position` — last position the integration successfully commanded (drives the drift-skip optimization above)
 - `rain_last_on` — ISO timestamp (tz-aware UTC) of when the rain sensor was last observed `on`; drives the rain-hold release. `None` when rain has never been seen, which is what makes a restart in clear weather a no-hold.
+- `presence_parked` / `presence_on_since` — the summer absence latch and when presence last came back. **Deliberately not cleared by `_midnight_reset`** — staying shut across days is the point.
 
 The cloud hysteresis timer (`sunny_changed_at`) is deliberately **not** persisted (see `212f6dd`) so a restart doesn't lock the integration into "cloudy" for 15 min on a clear morning.
 

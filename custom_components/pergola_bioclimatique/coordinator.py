@@ -38,6 +38,8 @@ from .const import (
     CONF_MAX_OPENING_ANGLE,
     CONF_MIN_ELEVATION,
     CONF_MIN_USEFUL_PERCENT,
+    CONF_PRESENCE_ENTITY,
+    CONF_PRESENCE_RESUME_DELAY,
     CONF_PRIORITY_LOCK_ENTITY,
     CONF_PV_MAX_WATTS,
     CONF_PV_OBSERVABLE_COS,
@@ -75,6 +77,7 @@ from .const import (
     DEFAULT_PV_PANEL_AZIMUTH,
     DEFAULT_PV_PANEL_TILT,
     DEFAULT_PV_SMOOTH_ALPHA,
+    DEFAULT_PRESENCE_RESUME_DELAY,
     DEFAULT_PV_SUNNY_RATIO,
     DEFAULT_RAIN_CLEAR_DELAY,
     DEFAULT_FLIP_PROFILE_THRESHOLD,
@@ -96,6 +99,21 @@ _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.state"
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    """Restore a persisted UTC timestamp, or None if unusable.
+
+    Must be tz-aware to subtract from ``dt_util.utcnow()`` — a naive or
+    malformed value is dropped rather than raising on every read.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+    return parsed if parsed.tzinfo is not None else None
 
 
 class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -134,6 +152,13 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # unblocked cycle retries it. Not persisted — a restart re-arms the
         # elevation listener anyway.
         self._calibration_deferred: bool = False
+        # Summer presence parking. `_presence_parked` latches when the
+        # algorithm's next close-through-0% happens while nobody is home, and
+        # is deliberately NOT cleared at midnight — staying shut across days
+        # is the point. `_presence_on_since` is when presence last became
+        # non-away, used for the resume delay. Both persisted.
+        self._presence_parked: bool = False
+        self._presence_on_since: datetime | None = None
         # Last moment the rain sensor was observed on (UTC). Persisted, so a
         # restart mid-shower resumes the remaining clear delay instead of
         # holding for a fresh full window. None = rain never seen.
@@ -191,6 +216,27 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._consecutive_failures == 0
 
     @property
+    def presence_away(self) -> bool:
+        """True when the presence source positively reports nobody home."""
+        entity_id = self._entity(CONF_PRESENCE_ENTITY)
+        if not entity_id:
+            return False
+        return solar.presence_is_away(self._get_state(entity_id))
+
+    @property
+    def presence_parked(self) -> bool:
+        """True while the pergola is being held shut for an empty house.
+
+        Summer only: winter tracking is unaffected by presence.
+
+        Deliberately does NOT also require ``presence_away``. The latch has
+        to outlive the moment someone gets home, or the resume delay would
+        be meaningless — arriving would unpark instantly. ``_note_presence``
+        is what clears it, once presence has held for the delay.
+        """
+        return self._mode == MODE_SUMMER and self._presence_parked
+
+    @property
     def lock_origin(self) -> str:
         """Lock the controller reports, or "" — for diagnostics on entities."""
         return self._lock_origin()
@@ -221,6 +267,43 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return solar.rain_hold_active(
             state.state == STATE_ON, age, float(delay)
         )
+
+    def _note_presence(self) -> bool:
+        """Track how long presence has been back; unlatch when long enough.
+
+        Returns True if the pergola is currently parked closed for absence.
+        Called once per control cycle, before any target is computed.
+        """
+        if not self._entity(CONF_PRESENCE_ENTITY):
+            return False
+
+        if self.presence_away:
+            self._presence_on_since = None
+            return self.presence_parked
+
+        # Present. Start the clock on the first cycle that sees them back.
+        if self._presence_on_since is None:
+            self._presence_on_since = dt_util.utcnow()
+
+        if self._presence_parked:
+            delay = self._cfg(
+                CONF_PRESENCE_RESUME_DELAY, DEFAULT_PRESENCE_RESUME_DELAY
+            )
+            seconds = (
+                dt_util.utcnow() - self._presence_on_since
+            ).total_seconds()
+            if solar.presence_resume_ready(seconds, float(delay)):
+                self._presence_parked = False
+                _LOGGER.info(
+                    "Pergola: presence back for %d min — resuming tracking",
+                    int(seconds / 60),
+                )
+            else:
+                _LOGGER.debug(
+                    "Presence back %ds of %d min required before resuming",
+                    int(seconds), int(delay),
+                )
+        return self.presence_parked
 
     def _lock_origin(self) -> str:
         """Origin the pergola controller currently reports, or "".
@@ -324,6 +407,15 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             )
 
+        # Presence: react to arrivals/departures without waiting for a tick
+        presence_entity = self._entity(CONF_PRESENCE_ENTITY)
+        if presence_entity:
+            self._unsub_listeners.append(
+                async_track_state_change_event(
+                    self.hass, presence_entity, self._on_presence_change
+                )
+            )
+
         # Calibration: listen for sun elevation crossing threshold
         elev_entity = self._entity(CONF_SUN_ELEVATION_ENTITY)
         if elev_entity:
@@ -371,17 +463,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._descent_calibrated = data.get("descent_calibrated", False)
             self._consecutive_failures = data.get("consecutive_failures", 0)
             self._last_known_position = data.get("last_known_position")
-            rain_last_on = data.get("rain_last_on")
-            if rain_last_on:
-                try:
-                    parsed = datetime.fromisoformat(rain_last_on)
-                except (ValueError, TypeError):
-                    parsed = None
-                # Must be tz-aware to subtract from dt_util.utcnow(); drop a
-                # naive value rather than raising on every rain_hold read.
-                if parsed is not None and parsed.tzinfo is None:
-                    parsed = None
-                self._rain_last_on = parsed
+            self._rain_last_on = _parse_utc(data.get("rain_last_on"))
+            # Parking survives restarts and days — that's the whole point.
+            self._presence_parked = data.get("presence_parked", False)
+            self._presence_on_since = _parse_utc(data.get("presence_on_since"))
             # Do NOT restore sunny_changed_at — after restart, the first
             # cloud detection reading should decide immediately without
             # waiting for the hysteresis timer to expire.
@@ -402,6 +487,11 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "last_known_position": self._last_known_position,
             "rain_last_on": (
                 self._rain_last_on.isoformat() if self._rain_last_on else None
+            ),
+            "presence_parked": self._presence_parked,
+            "presence_on_since": (
+                self._presence_on_since.isoformat()
+                if self._presence_on_since else None
             ),
         })
 
@@ -608,14 +698,21 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "Ignoring %s lock — rain sensor is the authority", lock_origin
             )
 
-        # Nothing blocks us any more — pick up a calibration that rain or a
-        # safety lock deferred this morning. Without this the elevation
+        # Presence. An empty house doesn't stop the pergola immediately — it
+        # keeps tracking until the algorithm's next close-through-0%, then
+        # parks there (see the latch further down). Once parked it stays shut
+        # across days until presence has been back for the resume delay.
+        parked = self._note_presence()
+
+        # Nothing blocks us any more — pick up a calibration that rain, a
+        # safety lock or an empty house deferred. Without this the elevation
         # listener would never fire again today and the pergola would stay
         # not-ready until tomorrow.
         if (
             self._calibration_deferred
             and not self._pergola_ready
             and not self._calibrating
+            and not parked
         ):
             self._calibration_deferred = False
             _LOGGER.info("Pergola: retrying deferred morning calibration")
@@ -730,6 +827,10 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             final = cloudy_target
             reason = "summer cloudy → standby %d%%" % int(cloudy_target)
 
+        if parked:
+            final = 0.0
+            reason = "nobody home → parked closed"
+
         final = solar.quantize(final, step)
         self._final_target = final
         self._mode_just_changed = False
@@ -777,6 +878,21 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
                 return self._build_data()
             _LOGGER.info("Descent recalibration OK")
+
+            # This close IS the parking moment when nobody's home. In summer
+            # the big descent is the midday phase A→B flip; we've just passed
+            # through 0%, so stop here instead of opening back up to the
+            # computed target. Latched until presence returns for the resume
+            # delay — including across days.
+            if self._mode == MODE_SUMMER and self.presence_away:
+                self._presence_parked = True
+                self._final_target = 0.0
+                _LOGGER.info(
+                    "Pergola: nobody home at the descent through 0%% — "
+                    "parking closed instead of moving to %d%%", int(final),
+                )
+                await self._save_state()
+                return self._build_data()
 
         # Move pergola
         _LOGGER.info(
@@ -963,6 +1079,22 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self.rain_hold:
             self.hass.async_create_task(self.async_request_refresh())
 
+    @callback
+    def _on_presence_change(self, event: Event) -> None:
+        """Push the parked sensor; kick a refresh on a real transition.
+
+        Arrival doesn't resume immediately — ``presence_resume_delay`` has to
+        elapse first — but refreshing here starts the clock on the very next
+        cycle rather than up to one ``update_interval`` later.
+        """
+        if event.data.get("new_state") is None:
+            return
+        self.async_update_listeners()
+        # Entity being added at startup, not a transition — see _on_rain_change.
+        if event.data.get("old_state") is None:
+            return
+        self.hass.async_create_task(self.async_request_refresh())
+
     async def _async_calibrate(self) -> None:
         """Morning calibration: close fully, verify, unlock.
 
@@ -975,6 +1107,16 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         if self.rain_hold:
             _LOGGER.info("Pergola: calibration deferred — rain hold active")
+            self._calibration_deferred = True
+            return
+
+        # Already parked for an empty house: don't calibrate at all. `ready`
+        # stays off, so nothing moves today either. (Before parking,
+        # calibration is allowed to run — its close is what parks us.)
+        if self.presence_parked:
+            _LOGGER.info(
+                "Pergola: calibration skipped — parked closed, nobody home"
+            )
             self._calibration_deferred = True
             return
 
@@ -1027,6 +1169,16 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         return
                     self._last_calibration = today
                     _LOGGER.info("Pergola: calibration successful")
+
+                    # An actual close while nobody's home is the parking
+                    # moment (the drift-skip branch above isn't — it never
+                    # moved, so the blades aren't at 0%).
+                    if self._mode == MODE_SUMMER and self.presence_away:
+                        self._presence_parked = True
+                        _LOGGER.info(
+                            "Pergola: nobody home — staying closed after "
+                            "calibration"
+                        )
 
             self._pergola_ready = True
             self._descent_calibrated = False
@@ -1086,4 +1238,5 @@ class PergolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "movement_ok": self.movement_ok,
             "rain_hold": self.rain_hold,
             "lock_origin": self._lock_origin(),
+            "presence_parked": self.presence_parked,
         }

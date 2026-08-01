@@ -68,7 +68,11 @@ You can configure the integration with just the cover and sun sensors. Adding th
 
 ### Daily use
 
-After install, the integration exposes one **device** with several entities:
+After install, the integration exposes one **device** with several entities. The
+entity IDs below assume the device is named `Pergola` and sits in no area —
+Home Assistant derives each ID from the device name, its area, and the entity's
+display name at creation time, so yours may carry a prefix (e.g.
+`binary_sensor.terrasse_pergola_rain_hold`). Look them up by name if in doubt.
 
 | Entity | What it does |
 |---|---|
@@ -79,7 +83,7 @@ After install, the integration exposes one **device** with several entities:
 | `binary_sensor.pergola_calibrated_today` | Whether today's calibration has already happened. |
 | `binary_sensor.pergola_sunny` | Live sunny/cloudy state (only if PV/light sensor configured). |
 | `binary_sensor.pergola_rain_hold` | Lit while rain is suppressing all movement (only if a rain sensor is configured). |
-| `binary_sensor.pergola_presence_parked` | Lit while an empty house is holding the pergola shut (only if a presence sensor is configured). Its `away` attribute shows the live presence reading — the two differ during the resume delay. |
+| `binary_sensor.pergola_closed_away` | "Closed – Away": lit while an empty house is holding the pergola shut (only if a presence sensor is configured). Its `away` attribute shows the live presence reading — the two differ during the resume delay. |
 | `binary_sensor.pergola_movement_problem` | Lit when a recent movement failed to reach its target — check for mechanical blockage. A command the controller *refused* does not light it; its `lock_origin` attribute names any lock currently reported. |
 | `sensor.pergola_profile_angle` | The current sun profile angle relative to the pergola face (degrees). Useful for calibration. |
 | `sensor.pergola_solar_target` | The position the geometry says is optimal (%). |
